@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, History, Filter, X, FileText, Download, ArrowUpDown, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
+import { Search, History, Filter, X, FileText, Download, ArrowUpDown, ArrowUp, ArrowDown, Trash2, LayoutGrid, LayoutList, Calendar, Tag, User } from 'lucide-react';
 import { RecurringTaskAction } from '../types';
 import { SearchableSelect } from './SearchableSelect';
 import { jsPDF } from 'jspdf';
@@ -30,6 +30,7 @@ export const RecurringTaskActionsView: React.FC<RecurringTaskActionsViewProps> =
   const [filterDate, setFilterDate] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -156,7 +157,11 @@ export const RecurringTaskActionsView: React.FC<RecurringTaskActionsViewProps> =
     <div className="space-y-6 pb-10">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div><h2 className="text-2xl font-black text-blue-600 uppercase tracking-tight">Recurring Actions</h2><p className="text-sm text-gray-600 mt-1">History of recurring task activity</p></div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex bg-blue-50 p-1 rounded-lg md:hidden border border-blue-200">
+                <button onClick={() => setViewMode('card')} className={`p-1.5 rounded-md transition-all ${viewMode === 'card' ? 'bg-white shadow text-blue-600' : 'text-blue-500'}`}><LayoutGrid size={18} /></button>
+                <button onClick={() => setViewMode('table')} className={`p-1.5 rounded-md transition-all ${viewMode === 'table' ? 'bg-white shadow text-blue-600' : 'text-blue-500'}`}><LayoutList size={18} /></button>
+            </div>
             <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center space-x-1 px-3 py-2 border-2 rounded-md text-xs font-black shadow-sm transition-all duration-200 uppercase tracking-widest ${showFilters ? 'bg-blue-600 border-blue-700 text-white' : 'bg-blue-50 border-blue-300 text-blue-600'}`}><Filter size={16} /><span>Filters</span></button>
         </div>
       </div>
@@ -183,7 +188,51 @@ export const RecurringTaskActionsView: React.FC<RecurringTaskActionsViewProps> =
         )}
       </div>
 
-      <div className="bg-white rounded-lg border-2 border-blue-400 shadow-sm overflow-hidden">
+      {/* Mobile Card View */}
+      <div className={`space-y-4 md:hidden ${viewMode === 'card' ? 'block' : 'hidden'}`}>
+        {paginatedActions.map((action) => (
+             <div key={action.id} className="bg-white border-2 border-blue-200 rounded-xl p-4 shadow-sm space-y-3 relative">
+                <div className="flex justify-between items-start">
+                    <div className="space-y-1 max-w-[70%]">
+                        <h4 className="text-sm font-black text-blue-900 leading-tight">{action.taskTitle}</h4>
+                        <div className="flex items-center gap-1.5 text-[10px] text-blue-600 font-bold uppercase">
+                            <Calendar size={12} />
+                            {action.updatedOn}
+                        </div>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border border-blue-100 ${getStatusColor(action.status)}`}>
+                        {action.status}
+                    </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 py-2 border-y border-blue-50">
+                    <div className="space-y-0.5">
+                        <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Assignee</span>
+                        <div className="flex items-center gap-1 text-[10px] text-blue-900 font-bold">
+                            <User size={10} /> {action.assignee}
+                        </div>
+                    </div>
+                    <div className="space-y-0.5">
+                        <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Category</span>
+                        <div className="flex items-center gap-1 text-[10px] text-blue-900 font-bold">
+                            <Tag size={10} /> {action.category}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-blue-50/50 p-2 rounded-lg border border-blue-100">
+                    <p className="text-[11px] text-blue-800 italic leading-relaxed">"{action.remarks}"</p>
+                </div>
+
+                <button onClick={() => onDeleteAction(action.id, action.taskId)} className="absolute bottom-4 right-4 p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                    <Trash2 size={16} />
+                </button>
+             </div>
+        ))}
+        {paginatedActions.length === 0 && <div className="text-center py-10 text-blue-300 font-bold uppercase text-xs">No activity history found.</div>}
+      </div>
+
+      <div className={`bg-white rounded-lg border-2 border-blue-400 shadow-sm overflow-hidden ${viewMode === 'card' ? 'hidden md:block' : 'block'}`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>

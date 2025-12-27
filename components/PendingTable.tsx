@@ -89,12 +89,12 @@ export const PendingTable: React.FC<PendingTableProps> = ({ title, headerLabel, 
                     </div>
                     
                     <div className="grid grid-cols-2 gap-3 pt-3 border-t border-blue-100">
-                        <div className="text-center p-2 bg-red-50 border border-red-100 rounded-lg">
+                        <div className="text-center p-2 bg-red-50 border-2 border-red-300 rounded-lg">
                             <div className="text-[9px] font-bold text-red-400 uppercase tracking-tighter mb-0.5">Not Started</div>
                             <div className="font-black text-red-600">{row.notStarted}</div>
                         </div>
-                        <div className="text-center p-2 bg-green-50 border border-green-100 rounded-lg">
-                            <div className="text-[9px] font-bold text-green-400 uppercase tracking-tighter mb-0.5">In Progress</div>
+                        <div className="text-center p-2 bg-green-50 border-2 border-green-900 rounded-lg">
+                            <div className="text-[9px] font-bold text-green-900 uppercase tracking-tighter mb-0.5">In Progress</div>
                             <div className="font-black text-green-900">{row.inProgress}</div>
                         </div>
                     </div>

@@ -154,7 +154,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     <div className="space-y-8 pb-10">
       {/* Header */}
       <div className="flex justify-center md:justify-center lg:justify-center">
-        <h2 className="text-3xl font-black text-blue-700 uppercase tracking-widest border-b-4 border-blue-600 pb-2">Dashboard Overview</h2>
+        <h2 className="text-3xl font-black text-blue-700 uppercase tracking-widest border-b-4 border-blue-600 pb-2">Task Dashboard</h2>
       </div>
 
       {/* Quick Actions */}
