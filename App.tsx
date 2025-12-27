@@ -588,7 +588,7 @@ export default function App() {
     { id: 'settings', label: 'Settings', icon: <Settings size={20} />, section: 'Master' }
   ].filter(item => {
     if (isAdmin) return true;
-    const hiddenItems = ['dashboard', 'users', 'clients', 'projects', 'categories', 'settings', 'vendors'];
+    const hiddenItems = [ 'dashboard','users', 'clients', 'projects', 'categories', 'settings', 'vendors'];
     return !hiddenItems.includes(item.id);
   });
 
