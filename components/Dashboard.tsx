@@ -8,6 +8,7 @@ import { Task, User, Project, ActionLogEntry, RecurringTaskAction } from '../typ
 import { parseToISO } from '../App';
 
 interface DashboardProps {
+  isAdmin: boolean;
   onOpenNewTask: () => void;
   onOpenAddUser: () => void;
   onOpenAddProject: () => void;
@@ -23,6 +24,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ 
+  isAdmin,
   onOpenNewTask, 
   onOpenAddUser,
   onOpenAddProject,
@@ -186,37 +188,39 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <h2 className="text-3xl font-black text-blue-700 uppercase tracking-widest border-b-4 border-blue-600 pb-2">Task Dashboard</h2>
       </div>
 
-      {/* Quick Actions */}
-      <div className="bg-sky-50 p-6 rounded-2xl shadow-md border-2 border-blue-300">
-        <SectionHeader title="Quick Control" icon={<LayoutList size={20}/>} />
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <QuickAction 
-            label="New Task" icon={<Plus size={18} />} 
-            colorClass="bg-blue-600 hover:bg-blue-700 text-white" 
-            onClick={onOpenNewTask}
-          />
-          <QuickAction 
-            label="Add User" icon={<UserPlus size={18} />} 
-            colorClass="bg-indigo-500 hover:bg-indigo-600 text-white" 
-            onClick={onOpenAddUser}
-          />
-          <QuickAction 
-            label="Add Vendor" icon={<Truck size={18} />} 
-            colorClass="bg-orange-500 hover:bg-orange-600 text-white" 
-            onClick={onOpenAddVendor}
-          />
-          <QuickAction 
-            label="Add Client" icon={<Building2 size={18} />} 
-            colorClass="bg-pink-500 hover:bg-pink-600 text-white" 
-            onClick={onOpenAddClient}
-          />
-          <QuickAction 
-            label="Add Project" icon={<Folder size={18} />} 
-            colorClass="bg-emerald-500 hover:bg-emerald-600 text-white" 
-            onClick={onOpenAddProject}
-          />
+      {/* Quick Actions - Only for Admin */}
+      {isAdmin && (
+        <div className="bg-sky-50 p-6 rounded-2xl shadow-md border-2 border-blue-300">
+          <SectionHeader title="Quick Control" icon={<LayoutList size={20}/>} />
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <QuickAction 
+              label="New Task" icon={<Plus size={18} />} 
+              colorClass="bg-blue-600 hover:bg-blue-700 text-white" 
+              onClick={onOpenNewTask}
+            />
+            <QuickAction 
+              label="Add User" icon={<UserPlus size={18} />} 
+              colorClass="bg-indigo-500 hover:bg-indigo-600 text-white" 
+              onClick={onOpenAddUser}
+            />
+            <QuickAction 
+              label="Add Vendor" icon={<Truck size={18} />} 
+              colorClass="bg-orange-500 hover:bg-orange-600 text-white" 
+              onClick={onOpenAddVendor}
+            />
+            <QuickAction 
+              label="Add Client" icon={<Building2 size={18} />} 
+              colorClass="bg-pink-500 hover:bg-pink-600 text-white" 
+              onClick={onOpenAddClient}
+            />
+            <QuickAction 
+              label="Add Project" icon={<Folder size={18} />} 
+              colorClass="bg-emerald-500 hover:bg-emerald-600 text-white" 
+              onClick={onOpenAddProject}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Stats Cards */}
       <div className="bg-blue-50/70 p-6 rounded-2xl border-2 border-blue-300 shadow-sm">
@@ -258,7 +262,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               icon={<Users size={20}/>} 
               iconBgColor="bg-indigo-100" 
               iconColor="text-indigo-600" 
-              onClick={() => onNavigate('users')}
+              onClick={isAdmin ? () => onNavigate('users') : undefined}
             />
         </div>
       </div>
