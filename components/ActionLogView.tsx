@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, FileText, LayoutGrid, LayoutList, Calendar, User, Clock, AlertCircle, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, Trash2, Briefcase, Building2 } from 'lucide-react';
 import { ActionLogEntry, Project } from '../types';
@@ -122,12 +123,29 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
     let sortableItems = [...filteredLogs];
     if (sortConfig !== null) {
       sortableItems.sort((a, b) => {
-        const aValue = a[sortConfig.key] ?? '';
-        const bValue = b[sortConfig.key] ?? '';
+        let aValue = a[sortConfig.key] ?? '';
+        let bValue = b[sortConfig.key] ?? '';
+        
+        // Handle date sorting properly
+        if (sortConfig.key === 'updateDate' || sortConfig.key === 'taskDate') {
+            const isoA = parseToISO(String(aValue));
+            const isoB = parseToISO(String(bValue));
+            if (isoA < isoB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (isoA > isoB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        }
+
         if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
         if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
       });
+    } else {
+        // Default sort by update date descending
+        sortableItems.sort((a, b) => {
+            const isoA = parseToISO(a.updateDate);
+            const isoB = parseToISO(b.updateDate);
+            return isoB.localeCompare(isoA);
+        });
     }
     return sortableItems;
   }, [filteredLogs, sortConfig]);
@@ -146,7 +164,7 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
     const csvContent = [
         headers.join(','),
         ...sortedLogs.map(log => {
-            const row = [`"${log.task.replace(/"/g, '""')}"`, log.taskDate, `"${log.updateDate}"`, log.status, `"${log.remarks.replace(/"/g, '""')}"`, `"${log.owner}"`];
+            const row = [`"${log.task.replace(/"/g, '""')}"`, log.taskDate, `"${formatToIndianDate(log.updateDate)}"`, log.status, `"${log.remarks.replace(/"/g, '""')}"`, `"${log.owner}"`];
             if (isVendorView) row.push(`"${log.vendor || ''}"`);
             else row.push(`"${log.assignees}"`, `"${log.project.split(' (')[0]}"`, `"${log.clientName || ''}"`);
             return row.join(',');
@@ -260,7 +278,7 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
                         <h4 className="text-sm font-black text-blue-900 leading-tight">{log.task}</h4>
                         <div className="flex items-center gap-1.5 text-[10px] text-blue-600 font-bold uppercase">
                             <Clock size={12} />
-                            {log.updateDate}
+                            {formatToIndianDate(log.updateDate)}
                         </div>
                     </div>
                     <span className="px-2 py-0.5 bg-blue-600 text-white rounded text-[8px] font-black uppercase tracking-widest shadow-sm">
@@ -331,7 +349,7 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
                 <tr key={log.id} className="hover:bg-blue-50/50 transition-colors">
                   <td className={`${tdClass} font-bold max-w-[200px] truncate`} title={log.task}>{log.task}</td>
                   <td className={`${tdClass} whitespace-nowrap`}>{formatToIndianDate(log.taskDate)}</td>
-                  <td className={`${tdClass} whitespace-nowrap`}>{formatToIndianDateTime(log.updateDate)}</td>
+                  <td className={`${tdClass} whitespace-nowrap`}>{formatToIndianDate(log.updateDate)}</td>
                   <td className={tdClass}><span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-black uppercase tracking-tighter whitespace-nowrap border border-blue-200">{log.status}</span></td>
                   <td className={`${tdClass} max-w-[200px] truncate italic text-blue-800`} title={log.remarks}>{log.remarks}</td>
                   <td className={`${tdClass} font-bold text-xs`}>{log.owner}</td>

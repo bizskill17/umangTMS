@@ -38,8 +38,8 @@ export const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({ isOpen, onCl
     if (isVendorTask) {
         tableColumn = ["Task Date", "Update Date", "Status", "Remarks", "Owner", "Vendor"];
         tableRows = taskLogs.map(log => [
-            log.taskDate || '-',
-            log.updateDate || '-',
+            formatToIndianDate(log.taskDate),
+            formatToIndianDate(log.updateDate),
             log.status,
             log.remarks || '-',
             log.owner,
@@ -48,8 +48,8 @@ export const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({ isOpen, onCl
     } else {
         tableColumn = ["Task Date", "Update Date", "Status", "Remarks", "Owner", "Assignees", "Project"];
         tableRows = taskLogs.map(log => [
-            log.taskDate || '-',
-            log.updateDate || '-',
+            formatToIndianDate(log.taskDate),
+            formatToIndianDate(log.updateDate),
             log.status,
             log.remarks || '-',
             log.owner,
@@ -101,7 +101,7 @@ export const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({ isOpen, onCl
                  <span className="text-[10px] font-extrabold uppercase text-blue-400">Current Status</span>
                  <div className="flex items-center gap-2">
                     <span className="px-2.5 py-0.5 bg-blue-600 text-white rounded-full text-xs font-bold uppercase tracking-wider">{task.status}</span>
-                    <span className="text-xs text-black font-bold flex items-center gap-1"><Clock size={12} className="text-blue-500"/> {task.lastUpdateDate || '-'}</span>
+                    <span className="text-xs text-black font-bold flex items-center gap-1"><Clock size={12} className="text-blue-500"/> {formatToIndianDate(task.lastUpdateDate || '')}</span>
                  </div>
               </div>
               <div className="bg-gray-50/50 border border-blue-100 p-4 rounded-xl space-y-1">
@@ -114,26 +114,17 @@ export const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({ isOpen, onCl
               <div className="bg-gray-50/50 border border-blue-100 p-4 rounded-xl space-y-1">
                  <span className="text-[10px] font-extrabold uppercase text-blue-400">Task Dates</span>
                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs text-black font-bold"><Calendar size={12} className="text-blue-500"/> {task.date}</div>
-                    <div className="flex items-center gap-1.5 text-xs text-black font-bold"><Calendar size={12} className="text-blue-500"/> {task.dueDate}</div>
+                    <div className="flex items-center gap-1.5 text-xs text-black font-bold"><Calendar size={12} className="text-blue-500"/> {formatToIndianDate(task.date)}</div>
+                    <div className="flex items-center gap-1.5 text-xs text-black font-bold"><Calendar size={12} className="text-blue-500"/> {formatToIndianDate(task.dueDate)}</div>
                  </div>
               </div>
           </div>
-
-          {/* Remarks Card */}
-          {task.remarks && (
-            <div className="bg-blue-50/30 border border-blue-100 p-4 rounded-xl">
-               <span className="text-[10px] font-extrabold uppercase text-blue-400 block mb-2">Original Notes</span>
-               <p className="text-sm text-black italic font-medium">"{task.remarks}"</p>
-            </div>
-          )}
 
           {/* Detailed History Table */}
           <div className="space-y-4">
             <h3 className="text-sm font-extrabold text-black uppercase tracking-widest flex items-center gap-2">
                <History className="text-blue-500" size={16} /> UPDATE HISTORY LOG
             </h3>
-            {/* Added scroll bar wrapper for mobile horizontal scroll */}
             <div className="border border-blue-200 rounded-xl overflow-x-auto shadow-sm">
               <table className="w-full text-left border-collapse min-w-[800px]">
                 <thead className="bg-blue-600">
@@ -156,8 +147,8 @@ export const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({ isOpen, onCl
                 <tbody className="divide-y divide-blue-50">
                   {taskLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="px-6 py-4 text-xs text-black font-bold whitespace-nowrap border-r border-blue-50 last:border-r-0">{log.taskDate || '-'}</td>
-                      <td className="px-6 py-4 text-xs text-black font-bold whitespace-nowrap border-r border-blue-50 last:border-r-0">{log.updateDate || '-'}</td>
+                      <td className="px-6 py-4 text-xs text-black font-bold whitespace-nowrap border-r border-blue-50 last:border-r-0">{formatToIndianDate(log.taskDate)}</td>
+                      <td className="px-6 py-4 text-xs text-black font-bold whitespace-nowrap border-r border-blue-50 last:border-r-0">{formatToIndianDate(log.updateDate)}</td>
                       <td className="px-6 py-4 text-xs border-r border-blue-50 last:border-r-0">
                         <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-[10px] font-bold uppercase whitespace-nowrap border border-blue-200">
                             {log.status}

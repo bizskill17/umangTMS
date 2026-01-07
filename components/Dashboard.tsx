@@ -1,5 +1,6 @@
+
 import React, { useMemo } from 'react';
-import { Plus, UserPlus, Folder, CheckSquare, Clock, AlertTriangle, CheckCircle, Users, Building2, Truck, FileText, RotateCcw, LayoutList, History } from 'lucide-react';
+import { Plus, UserPlus, Folder, CheckSquare, Clock, AlertTriangle, CheckCircle, Users, Building2, Truck, FileText, RotateCcw, LayoutList, History, ShieldAlert } from 'lucide-react';
 import { StatCard } from './StatCard';
 import { QuickAction } from './QuickAction';
 import { PendingTable } from './PendingTable';
@@ -63,6 +64,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return Array.from(map.values());
   }, [tasks]);
 
+  const priorityData = useMemo(() => {
+    const map = new Map<string, { name: string; total: number; notStarted: number; inProgress: number }>();
+    const priorities = ['High', 'Medium', 'Low'];
+    priorities.forEach(p => map.set(p, { name: p, total: 0, notStarted: 0, inProgress: 0 }));
+
+    tasks.forEach(task => {
+      if (!!(task.vendor && task.vendor.trim() !== '')) return;
+      if (task.status === 'Completed') return;
+      const p = task.priority || 'Medium';
+      if (!map.has(p)) map.set(p, { name: p, total: 0, notStarted: 0, inProgress: 0 });
+      const entry = map.get(p)!;
+      entry.total += 1;
+      if (task.status === 'Not Yet Started') entry.notStarted += 1;
+      if (task.status === 'In Progress' || task.status === 'Started') entry.inProgress += 1;
+    });
+    return Array.from(map.values()).filter(p => p.total > 0);
+  }, [tasks]);
+
   const projectData = useMemo(() => {
     const map = new Map<string, { name: string; total: number; notStarted: number; inProgress: number }>();
     tasks.forEach(task => {
@@ -95,17 +114,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return Array.from(map.values());
   }, [tasks]);
 
-  // Robust "Today" ISO string for consistent filtering
-  const isoToday = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const isoToday = useMemo(() => {
+    const now = new Date();
+    return now.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD reliably
+  }, []);
 
-  // Filter and count Daily Task Updates (By Assignee) for Today
   const dailyUpdates = useMemo(() => {
     const map = new Map<string, number>();
     actionLogs
-      .filter(l => !l.vendor && parseToISO(l.updateDate) === isoToday)
+      .filter(l => {
+        if (l.vendor && l.vendor.trim() !== '') return false;
+        const logDateStr = parseToISO(l.updateDate);
+        return logDateStr === isoToday;
+      })
       .forEach(log => {
-        // Correctly handle multiple assignees if stored as comma-separated string
-        const names = (log.assignees || '').split(',').map(s => s.trim()).filter(Boolean);
+        const nameStr = log.assignees || log.owner || 'Unknown';
+        const names = nameStr.split(',').map(s => s.trim()).filter(Boolean);
         names.forEach(n => map.set(n, (map.get(n) || 0) + 1));
       });
     return Array.from(map.entries())
@@ -113,11 +137,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
       .sort((a, b) => b.count - a.count);
   }, [actionLogs, isoToday]);
 
-  // Filter and count Vendor Task Updates (By Vendor) for Today
   const vendorUpdates = useMemo(() => {
     const map = new Map<string, number>();
     actionLogs
-      .filter(l => !!l.vendor && parseToISO(l.updateDate) === isoToday)
+      .filter(l => {
+        if (!l.vendor || l.vendor.trim() === '') return false;
+        const logDateStr = parseToISO(l.updateDate);
+        return logDateStr === isoToday;
+      })
       .forEach(log => {
         if (log.vendor) {
           map.set(log.vendor, (map.get(log.vendor) || 0) + 1);
@@ -128,11 +155,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
       .sort((a, b) => b.count - a.count);
   }, [actionLogs, isoToday]);
 
-  // Filter and count Recurring Task Updates (By Assignee) for Today
   const recurringUpdates = useMemo(() => {
     const map = new Map<string, number>();
     recurringActions
-      .filter(a => parseToISO(a.updatedOn) === isoToday)
+      .filter(a => {
+        const actionDateStr = parseToISO(a.updatedOn);
+        return actionDateStr === isoToday;
+      })
       .forEach(action => {
         if (action.assignee) {
           map.set(action.assignee, (map.get(action.assignee) || 0) + 1);
@@ -243,6 +272,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
           onRowClick={(name) => onFilterChange('assignee', name)}
         />
         <PendingTable 
+          title="Pending by Priority" 
+          headerLabel="Priority Level" 
+          data={priorityData} 
+          onRowClick={(name) => onFilterChange('priority', name)}
+          className="bg-indigo-50/30"
+        />
+        <PendingTable 
           title="Pending by Project" 
           headerLabel="Project Name" 
           data={projectData} 
@@ -267,14 +303,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
                  <Users size={18} className="text-indigo-600" />
                  <h4 className="text-sm font-black text-indigo-900 uppercase">Employee Updates</h4>
               </div>
-              <div className="flex-1 space-y-2">
+              <div className="flex-1 space-y-2 max-h-[300px] overflow-y-auto pr-1">
                  {dailyUpdates.map(u => (
                     <div key={u.name} onClick={() => onFilterChange('employee-log', u.name)} className="flex items-center justify-between p-2.5 hover:bg-indigo-50 rounded-xl cursor-pointer transition-colors border border-indigo-100 bg-indigo-50/10 shadow-sm">
                        <span className="text-xs font-bold text-indigo-900">{u.name}</span>
                        <span className="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black shadow-sm">{u.count}</span>
                     </div>
                  ))}
-                 {dailyUpdates.length === 0 && <p className="text-[10px] text-gray-400 italic text-center py-4 uppercase font-bold">No updates today</p>}
+                 {dailyUpdates.length === 0 && (
+                   <div className="flex flex-col items-center justify-center py-8 opacity-40">
+                      <Clock size={32} className="text-gray-300 mb-2" />
+                      <p className="text-[10px] text-gray-500 italic text-center uppercase font-bold tracking-widest">No employee activity today</p>
+                   </div>
+                 )}
               </div>
            </div>
 
@@ -284,14 +325,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
                  <Truck size={18} className="text-orange-600" />
                  <h4 className="text-sm font-black text-orange-900 uppercase">Vendor Updates</h4>
               </div>
-              <div className="flex-1 space-y-2">
+              <div className="flex-1 space-y-2 max-h-[300px] overflow-y-auto pr-1">
                  {vendorUpdates.map(u => (
                     <div key={u.name} onClick={() => onFilterChange('vendor-log', u.name)} className="flex items-center justify-between p-2.5 hover:bg-orange-50 rounded-xl cursor-pointer transition-colors border border-orange-100 bg-orange-50/10 shadow-sm">
                        <span className="text-xs font-bold text-orange-900">{u.name}</span>
                        <span className="bg-orange-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black shadow-sm">{u.count}</span>
                     </div>
                  ))}
-                 {vendorUpdates.length === 0 && <p className="text-[10px] text-gray-400 italic text-center py-4 uppercase font-bold">No updates today</p>}
+                 {vendorUpdates.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-8 opacity-40">
+                      <Clock size={32} className="text-gray-300 mb-2" />
+                      <p className="text-[10px] text-gray-500 italic text-center uppercase font-bold tracking-widest">No vendor activity today</p>
+                   </div>
+                 )}
               </div>
            </div>
 
@@ -301,14 +347,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
                  <RotateCcw size={18} className="text-emerald-600" />
                  <h4 className="text-sm font-black text-emerald-900 uppercase">Recurring Updates</h4>
               </div>
-              <div className="flex-1 space-y-2">
+              <div className="flex-1 space-y-2 max-h-[300px] overflow-y-auto pr-1">
                  {recurringUpdates.map(u => (
                     <div key={u.name} onClick={() => onFilterChange('recurring-log', u.name)} className="flex items-center justify-between p-2.5 hover:bg-emerald-50 rounded-xl cursor-pointer transition-colors border border-emerald-100 bg-emerald-50/10 shadow-sm">
                        <span className="text-xs font-bold text-emerald-900">{u.name}</span>
                        <span className="bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black shadow-sm">{u.count}</span>
                     </div>
                  ))}
-                 {recurringUpdates.length === 0 && <p className="text-[10px] text-gray-400 italic text-center py-4 uppercase font-bold">No updates today</p>}
+                 {recurringUpdates.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-8 opacity-40">
+                      <Clock size={32} className="text-gray-300 mb-2" />
+                      <p className="text-[10px] text-gray-500 italic text-center uppercase font-bold tracking-widest">No recurring updates today</p>
+                   </div>
+                 )}
               </div>
            </div>
         </div>

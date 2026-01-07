@@ -1,3 +1,4 @@
+
 /**
  * TaskPro - BizSkill Automation Backend
  * Google Sheets Integration Script
@@ -209,7 +210,10 @@ function handleAddTask(data) {
       }
     }
 
-    if (data.project) {
+    // Skip group notifications if owner assigns to self
+    const isSelfAssignment = data.assignees && data.owner && data.assignees.trim() === data.owner.trim();
+    
+    if (data.project && !isSelfAssignment) {
       sendToProjectWhatsAppGroup(data.project, msg);
       sendToProjectTelegramGroup(data.project, msg);
     }
@@ -239,11 +243,17 @@ function handleUpdateTask(data) {
   
   if (rowIndex === -1) throw new Error("Task ID not found");
   
+  const oldRowData = values[rowIndex - 1];
+  const priorityIndex = headers.findIndex(h => h.toLowerCase().includes('priority'));
+  const oldPriority = oldRowData[priorityIndex];
+
   // Robust data normalization for matching
   const normalizedData = {};
   Object.keys(data).forEach(k => {
     normalizedData[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = data[k];
   });
+
+  let fieldsChangedBesidesPriority = false;
 
   headers.forEach((h, i) => {
     const hClean = h.toString().trim();
@@ -255,6 +265,18 @@ function handleUpdateTask(data) {
     if (hLower === 'lastupdatedate') {
       sheet.getRange(rowIndex, i + 1).setValue(new Date());
       return;
+    }
+
+    // Check if fields other than Priority changed
+    if (hLower !== 'priority') {
+      let newValue = normalizedData[hLower];
+      if (newValue === undefined) {
+         let key = hClean.charAt(0).toLowerCase() + hClean.slice(1);
+         newValue = data[key];
+      }
+      if (newValue !== undefined && newValue != oldRowData[i]) {
+         fieldsChangedBesidesPriority = true;
+      }
     }
 
     // Explicit Priority Mappings
@@ -279,56 +301,62 @@ function handleUpdateTask(data) {
     }
   });
   
-  const logSheet = SS.getSheetByName(logSheetName);
-  const logHeaders = logSheet.getRange(1, 1, 1, logSheet.getLastColumn()).getValues()[0];
-  const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy hh:mm a");
-  
-  const logRow = logHeaders.map(h => {
-    if (h === 'ID') return new Date().getTime();
-    if (h === 'TaskID') return data.id;
-    if (h === 'TaskTitle') return data.title || values[rowIndex-1][headers.indexOf('Title')] || values[rowIndex-1][headers.indexOf('task')] || "";
-    if (h === 'UpdateDate') return timestamp;
-    if (h === 'Remarks') return data.lastUpdateRemarks || data.remarks || "-";
+  // LOGGING LOGIC: Skip row addition if skipLog flag is true (used for "Edit" actions)
+  if (!data.skipLog) {
+    const logSheet = SS.getSheetByName(logSheetName);
+    const logHeaders = logSheet.getRange(1, 1, 1, logSheet.getLastColumn()).getValues()[0];
+    const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy hh:mm a");
     
-    const hClean = h.toString().trim();
-    const hLower = hClean.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const logRow = logHeaders.map(h => {
+      if (h === 'ID') return new Date().getTime();
+      if (h === 'TaskID') return data.id;
+      if (h === 'TaskTitle') return data.title || values[rowIndex-1][headers.indexOf('Title')] || values[rowIndex-1][headers.indexOf('task')] || "";
+      if (h === 'UpdateDate') return timestamp;
+      if (h === 'Remarks') return data.lastUpdateRemarks || data.remarks || "-";
+      
+      const hClean = h.toString().trim();
+      const hLower = hClean.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-    if (normalizedData[hLower] !== undefined) return normalizedData[hLower];
+      if (normalizedData[hLower] !== undefined) return normalizedData[hLower];
 
-    let key = hClean.charAt(0).toLowerCase() + hClean.slice(1);
-    return data[key] || values[rowIndex-1][headers.indexOf(h)] || "";
-  });
-  
-  logSheet.appendRow(logRow);
-  
-  try {
-    const config = getMASConfig();
-    const taskTitle = data.title || values[rowIndex-1][headers.findIndex(h => h.toLowerCase().includes('title'))];
-    const taskStatus = data.status || values[rowIndex-1][headers.findIndex(h => h.toLowerCase().includes('status'))];
-    const taskRemarks = data.lastUpdateRemarks || data.remarks || "-";
-    const taskOwner = data.owner || values[rowIndex-1][headers.findIndex(h => h.toLowerCase().includes('owner'))];
-    const updateTimestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy hh:mm a");
+      let key = hClean.charAt(0).toLowerCase() + hClean.slice(1);
+      return data[key] || values[rowIndex-1][headers.indexOf(h)] || "";
+    });
     
-    let updateMsg = `📝 *Task Updated*\n\n` +
-                 `*Task:* ${taskTitle}\n` +
-                 `*Status:* ${taskStatus}\n` +
-                 `*Remarks:* ${taskRemarks}\n` +
-                 `*Updated At:* ${updateTimestamp}\n\n`;
+    logSheet.appendRow(logRow);
+  }
   
-    if (taskOwner) {
-      const ownerMobile = getUserMobile(taskOwner);
-      if (ownerMobile && String(ownerMobile).trim().length === 10) {
-        sendpersonalMessage(updateMsg, ownerMobile, config.username, config.password);
+  // Skip notification if only priority changed OR if skipLog is requested
+  if (!data.skipLog && (fieldsChangedBesidesPriority || data.status || data.lastUpdateRemarks)) {
+    try {
+      const config = getMASConfig();
+      const taskTitle = data.title || values[rowIndex-1][headers.findIndex(h => h.toLowerCase().includes('title'))];
+      const taskStatus = data.status || values[rowIndex-1][headers.findIndex(h => h.toLowerCase().includes('status'))];
+      const taskRemarks = data.lastUpdateRemarks || data.remarks || "-";
+      const taskOwner = data.owner || values[rowIndex-1][headers.findIndex(h => h.toLowerCase().includes('owner'))];
+      const updateTimestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy hh:mm a");
+      
+      let updateMsg = `📝 *Task Updated*\n\n` +
+                   `*Task:* ${taskTitle}\n` +
+                   `*Status:* ${taskStatus}\n` +
+                   `*Remarks:* ${taskRemarks}\n` +
+                   `*Updated At:* ${updateTimestamp}\n\n`;
+    
+      if (taskOwner) {
+        const ownerMobile = getUserMobile(taskOwner);
+        if (ownerMobile && String(ownerMobile).trim().length === 10) {
+          sendpersonalMessage(updateMsg, ownerMobile, config.username, config.password);
+        }
       }
-    }
 
-    const projectName = data.project || values[rowIndex-1][headers.findIndex(h => h.toLowerCase().includes('project'))];
-    if (projectName) {
-      sendToProjectWhatsAppGroup(projectName, updateMsg);
-      sendToProjectTelegramGroup(projectName, updateMsg);
+      const projectName = data.project || values[rowIndex-1][headers.findIndex(h => h.toLowerCase().includes('project'))];
+      if (projectName) {
+        sendToProjectWhatsAppGroup(projectName, updateMsg);
+        sendToProjectTelegramGroup(projectName, updateMsg);
+      }
+    } catch (e) {
+      Logger.log("Update Notification Error: " + e.message);
     }
-  } catch (e) {
-    Logger.log("Update Notification Error: " + e.message);
   }
   
   return true;

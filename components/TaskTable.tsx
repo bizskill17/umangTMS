@@ -1,6 +1,9 @@
+
 import React, { useMemo, useState } from 'react';
 import { Task, Project, User as UserType } from '../types';
-import { Edit2, Info, Calendar, User, Users, Briefcase, ArrowUpDown, ArrowUp, ArrowDown, Loader2, Trash2, Tag, Layout, Building2, Layers, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+// Added Clock to the imports from lucide-react
+import { Edit2, Info, Calendar, Clock, User, Users, Briefcase, ArrowUpDown, ArrowUp, ArrowDown, Loader2, Trash2, Tag, Layout, Building2, Layers, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { formatToIndianDate } from '../App';
 
 interface TaskTableProps {
   tasks: Task[];
@@ -83,12 +86,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
   };
 
   const formatDate = (dateStr: string) => {
-    if (!dateStr) return '';
-    try {
-        const date = new Date(dateStr);
-        if (isNaN(date.getTime())) return dateStr;
-        return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-    } catch { return dateStr; }
+    return formatToIndianDate(dateStr);
   };
 
   const thClass = "px-4 py-3 text-xs font-semibold text-white uppercase tracking-wider border-r border-blue-600 last:border-r-0 cursor-pointer hover:bg-blue-800 transition-colors select-none";
@@ -159,7 +157,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                     {isVendorView && <td className={tdClass}>{task.vendor || '-'}</td>}
                     <td className={tdClass}><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>{task.status}</span></td>
                     <td className={`${tdClass} whitespace-nowrap`}>
-                        {task.status === 'Not Yet Started' ? '-' : (task.lastUpdateDate || '-')}
+                        {task.status === 'Not Yet Started' ? '-' : (formatDate(task.lastUpdateDate || ''))}
                     </td>
                     <td className={`${tdClass} whitespace-normal min-w-[150px]`}>
                         {task.status === 'Not Yet Started' ? '-' : (task.lastUpdateRemarks || '-')}
@@ -264,6 +262,10 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                         <div className="space-y-1">
                             <span className="text-[10px] uppercase font-bold text-blue-900/60">Task Date</span>
                             <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase"><Calendar size={12} className="text-blue-900" /> {formatDate(task.date)}</div>
+                        </div>
+                        <div className="space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-blue-900/60">Update Date</span>
+                            <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase"><Clock size={12} className="text-indigo-600" /> {formatDate(task.lastUpdateDate || '')}</div>
                         </div>
                       </>
                     )}

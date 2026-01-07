@@ -1,9 +1,11 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, History, Filter, X, FileText, Download, ArrowUpDown, ArrowUp, ArrowDown, Trash2, LayoutGrid, LayoutList, Calendar, Tag, User } from 'lucide-react';
 import { RecurringTaskAction } from '../types';
 import { SearchableSelect } from './SearchableSelect';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { parseToISO } from '../App';
 
 interface RecurringTaskActionsViewProps {
   actions: RecurringTaskAction[];
@@ -85,15 +87,8 @@ export const RecurringTaskActionsView: React.FC<RecurringTaskActionsViewProps> =
       
       let matchesDate = true;
       if (filterDate) {
-          // Compare yyyy-mm-dd input with dd/mm/yyyy data
-          const inputDate = filterDate; // yyyy-mm-dd
-          const actionDateParts = action.updatedOn.split('/');
-          if (actionDateParts.length === 3) {
-              const actionISO = `${actionDateParts[2]}-${actionDateParts[1].padStart(2, '0')}-${actionDateParts[0].padStart(2, '0')}`;
-              matchesDate = actionISO === inputDate;
-          } else {
-              matchesDate = String(action.updatedOn).includes(filterDate);
-          }
+          const actionISO = parseToISO(action.updatedOn);
+          matchesDate = actionISO === filterDate;
       }
       
       return matchesCategory && matchesAssignee && matchesStatus && matchesDate;

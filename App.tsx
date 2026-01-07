@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
@@ -61,8 +62,13 @@ const AUTO_SYNC_INTERVAL = 120000;
 export const formatToIndianDate = (dateInput: any): string => {
   if (!dateInput) return '';
   const s = String(dateInput).trim();
-  const ddmmyyyyMatch = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
-  if (ddmmyyyyMatch) return `${ddmmyyyyMatch[1].padStart(2, '0')}/${ddmmyyyyMatch[2].padStart(2, '0')}/${ddmmyyyyMatch[3]}`;
+  
+  // Try matching Indian format DD/MM/YYYY or DD-MM-YYYY first to avoid browser locale misparsing
+  const match = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  if (match) {
+      return `${match[1].padStart(2, '0')}/${match[2].padStart(2, '0')}/${match[3]}`;
+  }
+
   try {
     const d = new Date(dateInput);
     if (isNaN(d.getTime())) return s;
@@ -72,23 +78,52 @@ export const formatToIndianDate = (dateInput: any): string => {
 
 export const formatToIndianDateTime = (dateInput: any): string => {
   if (!dateInput) return '';
-  const s = String(dateInput).trim();
-  if (/^\d{1,2}[/-]\d{1,2}[/-]\d{4} \d{1,2}:\d{1,2}/.test(s)) return s.replace(/-/g, '/');
+  let s = String(dateInput).trim();
+  
+  // Strict check for Indian format with optional timestamp
+  const match = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AP]M)?)?/i);
+  if (match) {
+      const [_, d, m, y, hh, mm, ss, ampm] = match;
+      const datePart = `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+      if (hh && mm) {
+          return `${datePart} ${hh.padStart(2, '0')}:${mm.padStart(2, '0')}${ampm ? ' ' + ampm.toUpperCase() : ''}`;
+      }
+      return datePart;
+  }
+
+  // Handle JS Date objects or ISO strings
   try {
     const d = new Date(dateInput);
     if (isNaN(d.getTime())) return s;
     const datePart = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
     const h = d.getHours();
     const m = d.getMinutes();
-    return `${datePart} ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${datePart} ${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
   } catch { return s; }
 };
 
-// Helper for filter comparisons
+// Helper for filter comparisons - returns YYYY-MM-DD
 export const parseToISO = (str: string) => {
     if (!str) return '';
-    const parts = str.split(' ')[0].split(/[/-]/);
-    if (parts.length !== 3) return str;
+    const trimmed = str.trim();
+    if (!trimmed) return '';
+    
+    // If it's already YYYY-MM-DD...
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.split(/[ T]/)[0];
+    
+    // Handle DD/MM/YYYY or DD-MM-YYYY with optional timestamp
+    const datePart = trimmed.split(/[ T]/)[0];
+    const parts = datePart.split(/[/-]/);
+    
+    if (parts.length !== 3) return trimmed;
+    
+    // If YYYY is first
+    if (parts[0].length === 4) {
+        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    }
+    // If DD is first (standard Indian format)
     return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
 };
 
@@ -329,12 +364,13 @@ export default function App() {
                 taskId: Number(l.taskId || l.taskID || 0),
                 task: String(l.task || l.taskTitle || l.TaskTitle || l.Task || ''),
                 taskDate: formatToIndianDate(l.taskDate || l.TaskDate || ''),
-                updateDate: formatToIndianDateTime(l.updateDate || l.UpdateDate || ''),
+                updateDate: formatToIndianDateTime(l.updateDate || l.UpdateDate || l['update Date'] || l['Update Date'] || ''),
                 clientName: rawClient,
                 assignees: String(l.assignees || l.Assignees || ''),
                 project: (rawClient && !rawProject.includes('(')) 
                     ? `${rawProject} (${rawClient})` 
-                    : rawProject
+                    : rawProject,
+                vendor: l.vendor || l.Vendor || ''
             };
         });
         setActionLogs(normalizedLogs);
@@ -437,6 +473,7 @@ export default function App() {
     }
   };
 
+  // Called when "Update" button is clicked (Status/Remarks/Reassignment during progress)
   const handleUpdateTaskOptimistic = async (task: Task) => {
     const now = new Date();
     const timestamp = now.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '');
@@ -457,11 +494,36 @@ export default function App() {
     }
   };
 
+  // Called when "Edit" button is clicked (Metadata edits like Title, Priority, etc.)
+  const handleEditTaskOptimistic = async (task: Task) => {
+    const now = new Date();
+    const timestamp = now.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '');
+    
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...task, lastUpdateDate: timestamp } : t)); 
+    setSyncingIds(prev => new Set(prev).add(task.id));
+
+    try {
+      const targetSheet = task.vendor && task.vendor.trim() !== '' ? 'VendorTasks' : 'MainTasks';
+      // Pass skipLog: true to prevent adding a row in TaskActionLog for simple edits
+      await apiPost('updateTask', { ...task, skipLog: true }, targetSheet); 
+    } catch (err) {
+    } finally {
+      setSyncingIds(prev => {
+        const next = new Set(prev);
+        next.delete(task.id);
+        return next;
+      });
+    }
+  };
+
   const handleDeleteLog = async (logId: number, taskId: number, isVendorLog: boolean) => {
     const targetLogSheet = isVendorLog ? 'VendorTaskActionLog' : 'MainTaskActionLog';
-    await apiPost('deleteRecord', { id: logId }, targetLogSheet);
     
+    // INSTANT STATE UPDATE: Remove log from local state immediately
     setActionLogs(prev => prev.filter(l => l.id !== logId));
+
+    // Async API call
+    apiPost('deleteRecord', { id: logId }, targetLogSheet);
 
     const remainingLogs = actionLogs.filter(l => l.id !== logId && Number(l.taskId) === Number(taskId));
     remainingLogs.sort((a, b) => {
@@ -487,7 +549,8 @@ export default function App() {
       setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
       
       const targetTaskSheet = isVendorLog ? 'VendorTasks' : 'MainTasks';
-      await apiPost('updateTask', updatedTask, targetTaskSheet);
+      // Syncing back the task status should not create a NEW log entry
+      apiPost('updateTask', { ...updatedTask, skipLog: true }, targetTaskSheet);
     }
   };
 
@@ -593,7 +656,7 @@ export default function App() {
   });
 
   const handleDashboardFilterChange = (type: string, value: string) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA'); // yyyy-mm-dd local
 
     if (type === 'vendor') {
         setActiveTab('pending-vendor-tasks');
@@ -604,6 +667,9 @@ export default function App() {
     } else if (type === 'project') {
         setActiveTab('pending');
         setFilterProject(value);
+    } else if (type === 'priority') {
+        setActiveTab('pending');
+        setFilterPriority(value);
     } else if (type === 'employee-log') {
         setActiveTab('action-log');
         setLogDashboardFilter({ type: 'assignee', value: value, dateFrom: today, dateTo: today });
@@ -654,7 +720,7 @@ export default function App() {
       lastUpdateFrom, setLastUpdateFrom, lastUpdateTo, setLastUpdateTo, searchTerm, setSearchTerm, filterVendor, setFilterVendor,
       lastAddedCategory, lastAddedProject, lastAddedVendorCategory, onClearLastAdded: () => { setLastAddedCategory(''); setLastAddedProject(''); setLastAddedVendorCategory(''); },
       onUpdateTask: handleUpdateTaskOptimistic,
-      onEditTask: handleUpdateTaskOptimistic,
+      onEditTask: handleEditTaskOptimistic,
       onDeleteTask: (id: number, isVendor: boolean) => { 
         setTasks(prev => prev.filter(t => t.id !== id)); 
         apiPost('deleteRecord', { id }, isVendor ? 'VendorTasks' : 'MainTasks'); 
@@ -675,13 +741,27 @@ export default function App() {
               if (task) {
                   const targetSheet = task.vendor && task.vendor.trim() !== '' ? 'VendorTasks' : 'MainTasks';
                   const finalUpdates = { ...updates };
+                  
+                  // Logic to determine if bulk update should create logs
+                  // If status is updated, we typically want a log.
+                  // If only assignee/priority is updated, we might want to skip log to avoid history noise.
+                  const isMetadataUpdate = updates.priority || updates.assignees || updates.vendor;
+                  const isStatusUpdate = !!updates.status;
+                  
                   if (!finalUpdates.lastUpdateRemarks) {
                       const changedFields = [];
                       if (updates.priority) changedFields.push(`Priority to ${updates.priority}`);
                       if (updates.assignees) changedFields.push(`Reassigned to ${updates.assignees}`);
+                      if (updates.vendor) changedFields.push(`Reassigned to ${updates.vendor}`);
                       if (updates.status) changedFields.push(`Status to ${updates.status}`);
                       finalUpdates.lastUpdateRemarks = `Bulk update: ${changedFields.join(', ')}`;
                   }
+
+                  // If purely metadata bulk update (no status change), skip the log row
+                  if (isMetadataUpdate && !isStatusUpdate) {
+                      finalUpdates.skipLog = true;
+                  }
+
                   await apiPost('updateTask', { ...task, ...finalUpdates }, targetSheet);
               }
           }
