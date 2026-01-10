@@ -118,15 +118,17 @@ function doPost(e) {
         break;
       case 'addMaster': 
         result = handleAddMaster(params.target, payload); 
-        if (params.target === 'RecurringTasks' || params.target === 'RecurringActions') {
-           handleRecurringTaskNotification(payload, params.target === 'RecurringTasks');
+        // Fixed double message: logic refined here
+        if (params.target === 'RecurringTasks') {
+           handleRecurringTaskNotification(payload, true);
+        }
+        if (params.target === 'RecurringActions') {
+           handleRecurringTaskNotification(payload, false);
         }
         break;
       case 'updateMaster': 
         result = handleUpdateMaster(params.target, payload); 
-        if (params.target === 'RecurringTasks') {
-           handleRecurringTaskNotification(payload, false);
-        }
+        // Removed notification from updateMaster to prevent duplicates when RecurringActions handles it
         break;
       case 'deleteRecord': 
         result = handleDeleteRecord(params.target, payload.id); 
@@ -180,7 +182,7 @@ function handleAddTask(data) {
     // Check for self-assignment + Admin role
     const ownerRole = getUserRole(data.owner);
     const isSelfAssignment = data.assignees && data.owner && data.assignees.trim() === data.owner.trim();
-    const skipPersonalMsg = isSelfAssignment && ownerRole === 'Admin'; // If Admin self-assigns, skip personal
+    const skipPersonalMsg = isSelfAssignment && ownerRole === 'Admin';
 
     let msg;
     if (isVendor) {
@@ -201,7 +203,7 @@ function handleAddTask(data) {
             `*Created At:* ${creationTime}`;
     }
 
-    if (!skipPersonalMsg) { // Only send personal message if not Admin self-assigning
+    if (!skipPersonalMsg) {
         if (isVendor && data.vendor) {
           const vendorMobile = getVendorMobile(data.vendor);
           if (vendorMobile) sendpersonalMessage(msg, vendorMobile, config.username, config.password);
@@ -216,10 +218,7 @@ function handleAddTask(data) {
     const rawProjectName = project.trim();
     if (rawProjectName && rawProjectName !== '-') {
       sendToProjectWhatsAppGroup(rawProjectName, msg);
-      // Only send Telegram group message if not Admin self-assigning
-      if (!skipPersonalMsg) {
-        sendToProjectTelegramGroup(rawProjectName, msg);
-      }
+      sendToProjectTelegramGroup(rawProjectName, msg);
     }
   } catch (e) { Logger.log("Notification Error: " + e.message); }
 
@@ -285,16 +284,13 @@ function handleUpdateTask(data) {
       const isSelfAssignment = data.assignees && data.owner && data.assignees.trim() === data.owner.trim();
       const skipPersonalMsg = isSelfAssignment && ownerRole === 'Admin';
 
-      if (data.owner && !skipPersonalMsg) { // Only send personal message to owner if not Admin self-assigning
+      if (data.owner && !skipPersonalMsg) {
         const ownerMobile = getUserMobile(data.owner);
         if (ownerMobile) sendpersonalMessage(updateMsg, ownerMobile, config.username, config.password);
       }
       if (data.project) {
         sendToProjectWhatsAppGroup(data.project, updateMsg);
-        // Only send Telegram group message if not Admin self-assigning
-        if (!skipPersonalMsg) {
-          sendToProjectTelegramGroup(data.project, updateMsg);
-        }
+        sendToProjectTelegramGroup(data.project, updateMsg);
       }
     } catch (e) { Logger.log("Update Notification Error: " + e.message); }
   }
@@ -442,20 +438,34 @@ function handleRecurringTaskNotification(data, isNew) {
     const taskTitle = data.title || data.taskTitle;
     const assignee = data.assignee;
     
+    // Construct Rule Detail based on periodicity
+    let ruleDetail = `*Periodicity:* ${data.periodicity || 'Fixed Days'}`;
+    if (data.periodicity === 'Weekly') {
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      ruleDetail += `\n*Day of Week:* ${days[data.recurrenceDay] || data.recurrenceDay}`;
+    } else if (data.periodicity === 'Monthly') {
+      ruleDetail += `\n*Day of Month:* ${data.recurrenceDay}`;
+    } else if (data.periodicity === 'Yearly') {
+      ruleDetail += `\n*Month:* ${data.recurrenceMonth}\n*Day:* ${data.recurrenceDay}`;
+    } else { // 'Fixed Days' or Default
+      ruleDetail += `\n*Frequency:* Every ${data.frequencyDays || 30} days`;
+    }
+
     let msg;
     if (isNew) {
-      msg = `🔄 *New Recurring Task Configured*\n\n` +
+      msg = `🔄 *New Recurring Task Created*\n\n` +
             `*Task:* ${escapeMarkdown(taskTitle)}\n` +
             `*Category:* ${data.category}\n` +
             `*Assignee:* ${escapeMarkdown(assignee)}\n` +
             `*Start Date:* ${formatDateDMY(data.startDate)}\n` +
-            `*Periodicity:* ${data.periodicity}\n` +
-            `*Configured At:* ${timestamp}`;
+            `${ruleDetail}\n` +
+            `*Created At:* ${timestamp}`;
     } else {
-      msg = `✅ *Recurring Task Activity*\n\n` +
+      msg = `✅ *Recurring Task Updated*\n\n` +
             `*Task:* ${escapeMarkdown(taskTitle)}\n` +
             `*Assignee:* ${escapeMarkdown(assignee)}\n` +
             `*Status:* ${data.status}\n` +
+            `${ruleDetail}\n` +
             `*Remarks:* ${escapeMarkdown(data.remarks || data.lastUpdateRemarks || '-')}\n` +
             `*Updated At:* ${timestamp}`;
     }
