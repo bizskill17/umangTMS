@@ -62,13 +62,10 @@ const AUTO_SYNC_INTERVAL = 120000;
 export const formatToIndianDate = (dateInput: any): string => {
   if (!dateInput) return '';
   const s = String(dateInput).trim();
-  
-  // Try matching Indian format DD/MM/YYYY or DD-MM-YYYY first to avoid browser locale misparsing
   const match = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
   if (match) {
       return `${match[1].padStart(2, '0')}/${match[2].padStart(2, '0')}/${match[3]}`;
   }
-
   try {
     const d = new Date(dateInput);
     if (isNaN(d.getTime())) return s;
@@ -79,8 +76,6 @@ export const formatToIndianDate = (dateInput: any): string => {
 export const formatToIndianDateTime = (dateInput: any): string => {
   if (!dateInput) return '';
   let s = String(dateInput).trim();
-  
-  // Strict check for Indian format with optional timestamp
   const match = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AP]M)?)?/i);
   if (match) {
       const [_, d, m, y, hh, mm, ss, ampm] = match;
@@ -90,8 +85,6 @@ export const formatToIndianDateTime = (dateInput: any): string => {
       }
       return datePart;
   }
-
-  // Handle JS Date objects or ISO strings
   try {
     const d = new Date(dateInput);
     if (isNaN(d.getTime())) return s;
@@ -104,26 +97,17 @@ export const formatToIndianDateTime = (dateInput: any): string => {
   } catch { return s; }
 };
 
-// Helper for filter comparisons - returns YYYY-MM-DD
 export const parseToISO = (str: string) => {
     if (!str) return '';
     const trimmed = str.trim();
     if (!trimmed) return '';
-    
-    // If it's already YYYY-MM-DD...
     if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.split(/[ T]/)[0];
-    
-    // Handle DD/MM/YYYY or DD-MM-YYYY with optional timestamp
     const datePart = trimmed.split(/[ T]/)[0];
     const parts = datePart.split(/[/-]/);
-    
     if (parts.length !== 3) return trimmed;
-    
-    // If YYYY is first
     if (parts[0].length === 4) {
         return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
     }
-    // If DD is first (standard Indian format)
     return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
 };
 
@@ -150,8 +134,6 @@ export default function App() {
   const isAdmin = currentUser?.role === 'Admin';
 
   const [activeTab, setActiveTab] = useState(() => {
-    const saved = localStorage.getItem('taskpro_user');
-    // Default to dashboard for everyone if they are logged in
     return 'dashboard';
   });
 
@@ -196,7 +178,6 @@ export default function App() {
   const [lastUpdateTo, setLastUpdateTo] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Structured filter state for Logs triggered from Dashboard
   const [logDashboardFilter, setLogDashboardFilter] = useState<{ type: string; value: string; dateFrom?: string; dateTo?: string } | null>(null);
 
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -240,18 +221,17 @@ export default function App() {
         finalData.vendor = data.vendor || '';
         finalData.vendorCategory = data.vendorCategory || '';
         
+        // Always derive project name and client name from the 'project' field (which should be 'Project (Client)')
         const projectValue = String(data.project || '');
-        const projParts = projectValue.split(' (');
-        if (projParts.length > 1) {
-            finalData.project = projParts[0].trim(); 
-            finalData.clientName = projParts[1].replace(')', '').trim(); 
-            finalData['client Name'] = finalData.clientName;
+        const projMatch = projectValue.match(/(.*)\s\((.*)\)/);
+        if (projMatch) {
+            finalData.project = projMatch[1].trim(); 
+            finalData.clientName = projMatch[2].trim(); 
         } else {
             finalData.project = projectValue;
-            finalData.clientName = data.clientName || '';
-            finalData['client Name'] = finalData.clientName;
+            finalData.clientName = data.clientName || ''; // Fallback if no client in project string
         }
-
+        
         finalData['due Date'] = data.dueDate || '';
         finalData['last Update'] = timestamp;
         finalData.lastUpdateDate = timestamp; 
@@ -262,12 +242,19 @@ export default function App() {
 
     if (action === 'addMaster' || action === 'updateMaster') {
         finalData.id = data.id || data.ID || 0;
+        
+        // Point 4 Fix: Ensure taskID is mapped correctly for recurring actions or similar tables
+        if (data.taskId) {
+            finalData.taskID = data.taskId;
+            finalData.recurringTaskId = data.taskId;
+        }
+
         const gst = data.gstNumber || data.GSTNumber || data.gSTNumber || '';
         if (gst) {
             finalData.gSTNumber = gst;
         }
-        if ('password' in data || 'Password' in data) {
-            finalData.password = data.password || data.Password || '';
+        if ('password' in data) { 
+          finalData.password = data.password;
         }
     }
 
@@ -304,7 +291,6 @@ export default function App() {
     if (!apiUrl) return;
     if (showLoading) setIsLoading(true);
     else setIsSyncing(true);
-
     if (abortControllerRef.current) abortControllerRef.current.abort();
     abortControllerRef.current = new AbortController();
     
@@ -319,8 +305,8 @@ export default function App() {
       if (result.success) {
         const { data } = result;
         const normalizeTasks = (list: any[]) => (list || []).map(item => {
-            const rawProject = String(item.project || item.Project || '');
-            const rawClient = String(item.clientName || item['client Name'] || item['Client Name'] || item.client || item.Client || '');
+            const rawProject = String(item.project || item.Project || '').trim();
+            const rawClient = String(item.clientName || item['client Name'] || item['Client Name'] || item.client || item.Client || '').trim();
             
             return {
                 ...item,
@@ -337,9 +323,9 @@ export default function App() {
                 category: item.category ? String(item.category) : '',
                 vendorCategory: item.vendorCategory || item.vendorcategory || '',
                 clientName: rawClient,
-                project: (rawClient && !rawProject.includes('(')) 
+                project: (rawProject && rawClient && !rawProject.includes('(')) 
                     ? `${rawProject} (${rawClient})` 
-                    : rawProject
+                    : rawProject || ''
             };
         });
 
@@ -351,10 +337,9 @@ export default function App() {
         setCategories((data.categories || []).map((c: any) => ({ ...c, id: Number(c.id) })));
         setVendorCategories((data.vendorCategories || []).map((vc: any) => ({ ...vc, id: Number(vc.id) })));
         setDesignations((data.designations || []).map((d: any) => ({ ...d, id: Number(d.id) })));
-        
         const normalizedLogs = (data.actionLogs || []).map((l: any) => {
-            const rawProject = String(l.project || l.Project || '');
-            const rawClient = String(l.clientName || l['client Name'] || l['Client Name'] || l.client || l.Client || '');
+            const rawProject = String(l.project || l.Project || '').trim();
+            const rawClient = String(l.clientName || l['client Name'] || l['Client Name'] || l.client || l.Client || '').trim();
             return {
                 ...l,
                 id: Number(l.id || l.ID || 0),
@@ -364,14 +349,13 @@ export default function App() {
                 updateDate: formatToIndianDateTime(l.updateDate || l.UpdateDate || l['update Date'] || l['Update Date'] || ''),
                 clientName: rawClient,
                 assignees: String(l.assignees || l.Assignees || ''),
-                project: (rawClient && !rawProject.includes('(')) 
+                project: (rawProject && rawClient && !rawProject.includes('(')) 
                     ? `${rawProject} (${rawClient})` 
-                    : rawProject,
+                    : rawProject || '',
                 vendor: l.vendor || l.Vendor || ''
             };
         });
         setActionLogs(normalizedLogs);
-        
         setRecurringTasks((data.recurringTasks || []).map((t: any) => ({
             ...t,
             id: Number(t.id),
@@ -380,14 +364,12 @@ export default function App() {
             lastUpdatedOn: formatToIndianDate(t.lastUpdatedOn || ''),
             status: String(t.status || 'Not Yet Started') as any
         })));
-
         setRecurringActions((data.recurringActions || []).map((a: any) => ({
           ...a,
           id: Number(a.id || 0),
           taskId: Number(a.taskId || a.taskID || a.taskid || 0),
           updatedOn: formatToIndianDate(a.updatedOn || a.UpdatedOn || '')
         })));
-
         if (data.settings) setSettings(data.settings);
         setLastSynced(new Date());
       }
@@ -429,9 +411,7 @@ export default function App() {
       localStorage.setItem('taskpro_user', JSON.stringify(normalizedUser));
       localStorage.setItem('taskpro_workspace_id', id);
       localStorage.setItem('taskpro_api_url', targetUrl);
-      
       setActiveTab('dashboard');
-      
       return { success: true };
     } catch (err) { return { success: false, error: "Connection Error." }; }
     finally { setIsLoading(false); }
@@ -441,7 +421,6 @@ export default function App() {
     const tempId = -Date.now(); 
     const now = new Date();
     const shortDate = now.toLocaleDateString('en-GB');
-
     const tempTask: Task = {
       ...taskData,
       id: tempId,
@@ -452,10 +431,8 @@ export default function App() {
       priority: taskData.priority || 'Medium',
       dueDate: formatToIndianDate(taskData.dueDate),
     };
-
     setTasks(prev => [tempTask, ...prev]);
     setSyncingIds(prev => new Set(prev).add(tempId));
-
     try {
       const targetSheet = isVendor ? 'VendorTasks' : 'MainTasks';
       await apiPost('addTask', taskData, targetSheet);
@@ -470,14 +447,11 @@ export default function App() {
     }
   };
 
-  // Called when "Update" button is clicked (Status/Remarks/Reassignment during progress)
   const handleUpdateTaskOptimistic = async (task: Task) => {
     const now = new Date();
     const timestamp = now.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '');
-    
     setTasks(prev => prev.map(t => t.id === task.id ? { ...task, lastUpdateDate: timestamp } : t)); 
     setSyncingIds(prev => new Set(prev).add(task.id));
-
     try {
       const targetSheet = task.vendor && task.vendor.trim() !== '' ? 'VendorTasks' : 'MainTasks';
       await apiPost('updateTask', { ...task, lastUpdateRemarks: task.lastUpdateRemarks || '' }, targetSheet); 
@@ -491,17 +465,13 @@ export default function App() {
     }
   };
 
-  // Called when "Edit" button is clicked (Metadata edits like Title, Priority, etc.)
   const handleEditTaskOptimistic = async (task: Task) => {
     const now = new Date();
     const timestamp = now.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '');
-    
     setTasks(prev => prev.map(t => t.id === task.id ? { ...task, lastUpdateDate: timestamp } : t)); 
     setSyncingIds(prev => new Set(prev).add(task.id));
-
     try {
       const targetSheet = task.vendor && task.vendor.trim() !== '' ? 'VendorTasks' : 'MainTasks';
-      // Pass skipLog: true to prevent adding a row in TaskActionLog for simple edits
       await apiPost('updateTask', { ...task, skipLog: true }, targetSheet); 
     } catch (err) {
     } finally {
@@ -515,26 +485,11 @@ export default function App() {
 
   const handleDeleteLog = async (logId: number, taskId: number, isVendorLog: boolean) => {
     const targetLogSheet = isVendorLog ? 'VendorTaskActionLog' : 'MainTaskActionLog';
-    
-    // INSTANT STATE UPDATE: Remove log from local state immediately
     setActionLogs(prev => prev.filter(l => l.id !== logId));
-
-    // Async API call
     apiPost('deleteRecord', { id: logId }, targetLogSheet);
-
     const remainingLogs = actionLogs.filter(l => l.id !== logId && Number(l.taskId) === Number(taskId));
-    remainingLogs.sort((a, b) => {
-        const parseDate = (ds: string) => {
-            const [date, time] = ds.split(' ');
-            const [d, m, y] = date.split('/');
-            return new Date(`${y}-${m}-${d}T${time || '00:00'}`).getTime();
-        };
-        return parseDate(b.updateDate) - parseDate(a.updateDate);
-    });
-    
     const lastLog = remainingLogs[0];
     const task = tasks.find(t => t.id === taskId);
-    
     if (task) {
       const updatedTask = {
         ...task,
@@ -542,11 +497,8 @@ export default function App() {
         lastUpdateDate: lastLog ? lastLog.updateDate : '',
         lastUpdateRemarks: lastLog ? lastLog.remarks : ''
       };
-      
       setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
-      
       const targetTaskSheet = isVendorLog ? 'VendorTasks' : 'MainTasks';
-      // Syncing back the task status should not create a NEW log entry
       apiPost('updateTask', { ...updatedTask, skipLog: true }, targetTaskSheet);
     }
   };
@@ -597,33 +549,35 @@ export default function App() {
 
   const visibleTasks = tasks.filter(t => {
     if (isAdmin) return true;
+    const userName = currentUser?.name || '';
+    const owner = String(t.owner || '');
+    const assignees = String(t.assignees || '');
+    
     const isVendorTask = t.vendor && t.vendor.trim() !== '';
-    if (isVendorTask) {
-        return t.owner && t.owner.includes(currentUser.name);
-    } else {
-        return (t.owner && t.owner.includes(currentUser.name)) || 
-               (t.assignees && t.assignees.includes(currentUser.name));
-    }
+    if (isVendorTask) return owner.includes(userName);
+    return owner.includes(userName) || assignees.includes(userName);
   });
 
   const visibleActionLogs = actionLogs.filter(l => {
     if (isAdmin) return true;
-    if (l.vendor) {
-        return l.owner && l.owner.includes(currentUser.name);
-    } else {
-        return (l.owner && l.owner.includes(currentUser.name)) || 
-               (l.assignees && l.assignees.includes(currentUser.name));
-    }
+    const userName = currentUser?.name || '';
+    const owner = String(l.owner || '');
+    const assignees = String(l.assignees || '');
+    
+    if (l.vendor) return owner.includes(userName);
+    return owner.includes(userName) || assignees.includes(userName);
   });
 
   const visibleRecurringTasks = recurringTasks.filter(t => {
     if (isAdmin) return true;
-    return t.assignee && t.assignee.includes(currentUser.name);
+    const userName = currentUser?.name || '';
+    return String(t.assignee || '').includes(userName);
   });
 
   const visibleRecurringActions = recurringActions.filter(a => {
     if (isAdmin) return true;
-    return a.assignee && a.assignee.includes(currentUser.name);
+    const userName = currentUser?.name || '';
+    return String(a.assignee || '').includes(userName);
   });
 
   const navItems: NavItem[] = [
@@ -648,65 +602,33 @@ export default function App() {
     { id: 'settings', label: 'Settings', icon: <Settings size={20} />, section: 'Master' }
   ].filter(item => {
     if (isAdmin) return true;
-    // Removed 'dashboard' from hiddenItems so non-admins can see it
-    const hiddenItems = ['users', 'clients', 'projects', 'categories', 'settings', 'vendors'];
-    return !hiddenItems.includes(item.id);
+    const hiddenItemsForNonAdmin = ['users', 'clients', 'projects', 'categories', 'settings', 'vendors'];
+    return !hiddenItemsForNonAdmin.includes(item.id);
   });
 
   const handleDashboardFilterChange = (type: string, value: string) => {
-    const today = new Date().toLocaleDateString('en-CA'); // yyyy-mm-dd local
-
-    if (type === 'vendor') {
-        setActiveTab('pending-vendor-tasks');
-        setFilterVendor(value);
-    } else if (type === 'assignee') {
-        setActiveTab('pending');
-        setFilterAssignee(value);
-    } else if (type === 'project') {
-        setActiveTab('pending');
-        setFilterProject(value);
-    } else if (type === 'priority') {
-        setActiveTab('pending');
-        setFilterPriority(value);
-    } else if (type === 'employee-log') {
-        setActiveTab('action-log');
-        setLogDashboardFilter({ type: 'assignee', value: value, dateFrom: today, dateTo: today });
-    } else if (type === 'vendor-log') {
-        setActiveTab('vendor-action-log');
-        setLogDashboardFilter({ type: 'vendor', value: value, dateFrom: today, dateTo: today });
-    } else if (type === 'recurring-log') {
-        setActiveTab('recurring-actions');
-        setLogDashboardFilter({ type: 'assignee', value: value, dateFrom: today, dateTo: today });
+    const today = new Date().toLocaleDateString('en-CA');
+    if (type === 'vendor') { setActiveTab('pending-vendor-tasks'); setFilterVendor(value); }
+    else if (type === 'assignee') { setActiveTab('pending'); setFilterAssignee(value); }
+    else if (type === 'project') { setActiveTab('pending'); setFilterProject(value); }
+    else if (type === 'priority') { setActiveTab('pending'); setFilterPriority(value); }
+    else if (type === 'status') { 
+        if (value === 'Overdue') setActiveTab('pending');
+        else if (value === 'Completed') setActiveTab('completed');
+        else setActiveTab('all-tasks');
+        setFilterStatus(value);
     }
+    else if (type === 'employee-log') { setActiveTab('action-log'); setLogDashboardFilter({ type: 'assignee', value: value, dateFrom: today, dateTo: today }); }
+    else if (type === 'vendor-log') { setActiveTab('vendor-action-log'); setLogDashboardFilter({ type: 'vendor', value: value, dateFrom: today, dateTo: today }); }
+    else if (type === 'recurring-log') { setActiveTab('recurring-actions'); setLogDashboardFilter({ type: 'assignee', value: value, dateFrom: today, dateTo: today }); }
   };
 
   const renderContent = () => {
     const handleExportExcel = (tasksToExport: Task[]) => {
       const headers = ['Date', 'Task', 'Notes', 'Assignees', 'Owner', 'Project', 'Client Name', 'Vendor', 'Vendor Category', 'Status', 'Last Update', 'Remark', 'Priority', 'Due Date'];
-      const csvContent = [
-        headers.join(','),
-        ...tasksToExport.map(task => [
-          `"${task.date}"`,
-          `"${(task.title || '').replace(/"/g, '""')}"`,
-          `"${(task.remarks || '').replace(/"/g, '""')}"`,
-          `"${task.assignees}"`,
-          `"${task.owner}"`,
-          `"${task.project.split(' (')[0]}"`,
-          `"${task.clientName || ''}"`,
-          `"${task.vendor || ''}"`,
-          `"${task.vendorCategory || ''}"`,
-          `"${task.status}"`,
-          `"${task.lastUpdateDate || ''}"`,
-          `"${(task.lastUpdateRemarks || '').replace(/"/g, '""')}"`,
-          `"${task.priority}"`,
-          `"${task.dueDate}"`
-        ].join(','))
-      ].join('\n');
+      const csvContent = [headers.join(','), ...tasksToExport.map(task => [`"${task.date}"`, `"${(task.title || '').replace(/"/g, '""')}"`, `"${(task.remarks || '').replace(/"/g, '""')}"`, `"${task.assignees}"`, `"${task.owner}"`, `"${task.project.split(' (')[0]}"`, `"${task.clientName || ''}"`, `"${task.vendor || ''}"`, `"${task.vendorCategory || ''}"`, `"${task.status}"`, `"${task.lastUpdateDate || ''}"`, `"${(task.lastUpdateRemarks || '').replace(/"/g, '""')}"`, `"${task.priority}"`, `"${task.dueDate}"`].join(','))].join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.setAttribute('download', `Export_${new Date().toISOString().split('T')[0]}.csv`);
-      link.click();
+      const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.setAttribute('download', `Export_${new Date().toISOString().split('T')[0]}.csv`); link.click();
     };
 
     const commonTaskProps = {
@@ -717,21 +639,12 @@ export default function App() {
       dateFrom, setDateFrom, dateTo, setDateTo,
       lastUpdateFrom, setLastUpdateFrom, lastUpdateTo, setLastUpdateTo, searchTerm, setSearchTerm, filterVendor, setFilterVendor,
       lastAddedCategory, lastAddedProject, lastAddedVendorCategory, onClearLastAdded: () => { setLastAddedCategory(''); setLastAddedProject(''); setLastAddedVendorCategory(''); },
-      onUpdateTask: handleUpdateTaskOptimistic,
-      onEditTask: handleEditTaskOptimistic,
-      onDeleteTask: (id: number, isVendor: boolean) => { 
-        setTasks(prev => prev.filter(t => t.id !== id)); 
-        apiPost('deleteRecord', { id }, isVendor ? 'VendorTasks' : 'MainTasks'); 
-      },
+      onUpdateTask: handleUpdateTaskOptimistic, onEditTask: handleEditTaskOptimistic,
+      onDeleteTask: (id: number, isVendor: boolean) => { setTasks(prev => prev.filter(t => t.id !== id)); apiPost('deleteRecord', { id }, isVendor ? 'VendorTasks' : 'MainTasks'); },
       onViewHistory: (task: Task) => { setSelectedTaskForHistory(task); setIsHistoryModalOpen(true); },
-      onAddTask: (isVendor: boolean = false) => {
-        setIsTaskModalVendorMode(isVendor);
-        setIsTaskModalOpen(true);
-      },
-      onAddCategory: () => setIsCategoryModalOpen(true),
-      onAddProject: () => setIsProjectModalOpen(true),
-      onAddVendorCategory: () => setIsVendorCategoryModalOpen(true),
-      onExportExcel: handleExportExcel,
+      onAddTask: (isVendor: boolean = false) => { setIsTaskModalVendorMode(isVendor); setIsTaskModalOpen(true); },
+      onAddCategory: () => setIsCategoryModalOpen(true), onAddProject: () => setIsProjectModalOpen(true),
+      onAddVendorCategory: () => setIsVendorCategoryModalOpen(true), onExportExcel: handleExportExcel,
       onBulkUpdateTask: async (ids: number[], updates: any) => {
           setTasks(prev => prev.map(t => ids.includes(t.id) ? { ...t, ...updates } : t));
           for (const id of ids) {
@@ -739,27 +652,14 @@ export default function App() {
               if (task) {
                   const targetSheet = task.vendor && task.vendor.trim() !== '' ? 'VendorTasks' : 'MainTasks';
                   const finalUpdates = { ...updates };
-                  
-                  // Logic to determine if bulk update should create logs
-                  // If status is updated, we typically want a log.
-                  // If only assignee/priority is updated, we might want to skip log to avoid history noise.
-                  const isMetadataUpdate = updates.priority || updates.assignees || updates.vendor;
-                  const isStatusUpdate = !!updates.status;
-                  
                   if (!finalUpdates.lastUpdateRemarks) {
                       const changedFields = [];
                       if (updates.priority) changedFields.push(`Priority to ${updates.priority}`);
                       if (updates.assignees) changedFields.push(`Reassigned to ${updates.assignees}`);
-                      if (updates.vendor) changedFields.push(`Reassigned to ${updates.vendor}`);
                       if (updates.status) changedFields.push(`Status to ${updates.status}`);
                       finalUpdates.lastUpdateRemarks = `Bulk update: ${changedFields.join(', ')}`;
                   }
-
-                  // If purely metadata bulk update (no status change), skip the log row
-                  if (isMetadataUpdate && !isStatusUpdate) {
-                      finalUpdates.skipLog = true;
-                  }
-
+                  if ((updates.priority || updates.assignees || updates.vendor) && !updates.status) { finalUpdates.skipLog = true; }
                   await apiPost('updateTask', { ...task, ...finalUpdates }, targetSheet);
               }
           }
@@ -769,75 +669,75 @@ export default function App() {
     switch (activeTab) {
       case 'dashboard': 
         return <Dashboard 
-          isAdmin={isAdmin}
-          tasks={visibleTasks} 
-          users={users} 
-          projects={projects} 
-          actionLogs={visibleActionLogs}
-          recurringActions={visibleRecurringActions}
-          onNavigate={setActiveTab} 
-          onFilterChange={handleDashboardFilterChange} 
-          onOpenNewTask={() => { setIsTaskModalVendorMode(false); setIsTaskModalOpen(true); }} 
-          onOpenAddUser={() => setIsUserModalOpen(true)} 
-          onOpenAddProject={() => setIsProjectModalOpen(true)} 
-          onOpenAddClient={() => setIsClientModalOpen(true)} 
-          onOpenAddVendor={() => setIsVendorModalOpen(true)} 
+          isAdmin={isAdmin} tasks={visibleTasks} users={users} projects={projects} actionLogs={visibleActionLogs} recurringActions={visibleRecurringActions}
+          onNavigate={setActiveTab} onFilterChange={handleDashboardFilterChange} onOpenNewTask={() => { setIsTaskModalVendorMode(false); setIsTaskModalOpen(true); }} 
+          onOpenAddUser={() => setIsUserModalOpen(true)} onOpenAddProject={() => setIsProjectModalOpen(true)} onOpenAddClient={() => setIsClientModalOpen(true)} onOpenAddVendor={() => setIsVendorModalOpen(true)} 
         />;
-      
       case 'all-tasks': return <TasksView title="All Tasks" description="View and manage all your tasks" tasks={visibleTasks.filter(t => !t.vendor || t.vendor === '')} {...commonTaskProps} filterType="all" />;
       case 'pending': return <TasksView title="Pending Tasks" description="Tasks requiring attention" tasks={visibleTasks.filter(t => !t.vendor || t.vendor === '')} {...commonTaskProps} filterType="pending" />;
       case 'completed': return <TasksView title="Completed Tasks" description="History of finished tasks" tasks={visibleTasks.filter(t => !t.vendor || t.vendor === '')} {...commonTaskProps} filterType="completed" />;
       case 'action-log': return <ActionLogView logs={visibleActionLogs.filter(l => !l.vendor)} projects={projects} onDeleteLog={(logId, taskId) => handleDeleteLog(logId, taskId, false)} dashboardFilter={logDashboardFilter} onClearDashboardFilter={() => setLogDashboardFilter(null)} />;
-      
-      case 'vendors': 
-        if (!isAdmin) return null;
-        return <VendorsView vendors={vendors} onAddVendor={(v) => { setVendors(p => [...p, { ...v, id: Date.now() } as any]); apiPost('addMaster', v, 'Vendors'); }} onDeleteVendor={(id) => { setVendors(p => p.filter(v => v.id !== id)); apiPost('deleteRecord', { id }, 'Vendors'); }} onEditVendor={(v) => { setVendors(p => p.map(x => x.id === v.id ? v : x)); apiPost('updateMaster', v, 'Vendors'); }} />;
-      
+      case 'vendors': if (!isAdmin) return null; return <VendorsView vendors={vendors} onAddVendor={(v) => { setVendors(p => [...p, { ...v, id: Date.now() } as any]); apiPost('addMaster', v, 'Vendors'); }} onDeleteVendor={(id) => { setVendors(p => p.filter(v => v.id !== id)); apiPost('deleteRecord', { id }, 'Vendors'); }} onEditVendor={(v) => { setVendors(p => p.map(x => x.id === v.id ? v : x)); apiPost('updateMaster', v, 'Vendors'); }} />;
       case 'vendor-categories': return <VendorCategoriesView categories={vendorCategories} onAddCategory={() => setIsVendorCategoryModalOpen(true)} onDeleteCategory={(id) => { setVendorCategories(p => p.filter(c => c.id !== id)); apiPost('deleteRecord', { id }, 'VendorCategories'); }} onEditCategory={(vc) => { setVendorCategories(p => p.map(x => x.id === vc.id ? vc : x)); apiPost('updateMaster', vc, 'VendorCategories'); }} />;
       case 'vendor-tasks': return <TasksView title="All Vendor Tasks" description="Manage external vendor activities" tasks={visibleTasks.filter(t => t.vendor && t.vendor !== '')} {...commonTaskProps} isVendorView={true} filterType="all" />;
       case 'pending-vendor-tasks': return <TasksView title="Pending Vendor Tasks" description="Active vendor activities" tasks={visibleTasks.filter(t => t.vendor && t.vendor !== '')} {...commonTaskProps} isVendorView={true} filterType="pending" />;
       case 'completed-vendor-tasks': return <TasksView title="Completed Vendor Tasks" description="Finished vendor activities" tasks={visibleTasks.filter(t => t.vendor && t.vendor !== '')} {...commonTaskProps} isVendorView={true} filterType="completed" />;
-      case 'vendor-action-log': return <ActionLogView logs={visibleActionLogs.filter(l => !l.vendor)} projects={projects} isVendorView={true} onDeleteLog={(logId, taskId) => handleDeleteLog(logId, taskId, true)} dashboardFilter={logDashboardFilter} onClearDashboardFilter={() => setLogDashboardFilter(null)} />;
-
+      case 'vendor-action-log': return <ActionLogView logs={visibleActionLogs.filter(l => l.vendor)} projects={projects} isVendorView={true} onDeleteLog={(logId, taskId) => handleDeleteLog(logId, taskId, true)} dashboardFilter={logDashboardFilter} onClearDashboardFilter={() => setLogDashboardFilter(null)} />;
       case 'due-recurring-tasks': return <RecurringTasksView title="Due Recurring Tasks" filterType="due" tasks={visibleRecurringTasks} actions={visibleRecurringActions} onAdd={() => setIsRecurringTaskModalOpen(true)} onUpdate={(t) => { setSelectedRecurringTask(t); setIsRecurringTaskUpdateModalOpen(true); }} onEdit={(t) => { setSelectedRecurringTask(t); setIsEditRecurringTaskModalOpen(true); }} onViewHistory={(t) => { setSelectedRecurringTask(t); setIsRecurringHistoryModalOpen(true); }} onDelete={(id) => { setRecurringTasks(prev => prev.filter(t => t.id !== id)); apiPost('deleteRecord', { id }, 'RecurringTasks'); }} currentUser={currentUser} />;
       case 'recurring-tasks': return <RecurringTasksView title="Recurring Tasks" tasks={visibleRecurringTasks} actions={visibleRecurringActions} onAdd={() => setIsRecurringTaskModalOpen(true)} onUpdate={(t) => { setSelectedRecurringTask(t); setIsRecurringTaskUpdateModalOpen(true); }} onEdit={(t) => { setSelectedRecurringTask(t); setIsEditRecurringTaskModalOpen(true); }} onViewHistory={(t) => { setSelectedRecurringTask(t); setIsRecurringHistoryModalOpen(true); }} onDelete={(id) => { setRecurringTasks(prev => prev.filter(t => t.id !== id)); apiPost('deleteRecord', { id }, 'RecurringTasks'); }} currentUser={currentUser} />;
-      case 'recurring-actions': return <RecurringTaskActionsView actions={visibleRecurringActions} onDeleteAction={(logId) => apiPost('deleteRecord', { id: logId }, 'RecurringActions')} dashboardFilter={logDashboardFilter} onClearDashboardFilter={() => setLogDashboardFilter(null)} />;
-      
-      case 'users': 
-        if (!isAdmin) return null;
-        return <UsersView 
-          users={users} 
-          designations={designations} 
-          onAddUser={(u) => { setUsers(p => [...p, { ...u, id: Date.now(), isActive: true } as any]); apiPost('addMaster', u, 'Users'); }} 
-          onEditUser={(u) => { setUsers(p => p.map(x => x.id === u.id ? u : x)); apiPost('updateMaster', u, 'Users'); }} 
-          onToggleStatus={(id) => {
-              const user = users.find(u => u.id === id);
-              if (!user) return;
-              const newStatus = !user.isActive;
-              setUsers(prev => prev.map(u => u.id === id ? { ...u, isActive: newStatus } : u));
-              apiPost('updateMaster', { id, isActive: newStatus ? 'TRUE' : 'FALSE' }, 'Users');
-          }} 
-          onDeleteUser={(id) => { setUsers(p => p.filter(u => u.id !== id)); apiPost('deleteRecord', { id }, 'Users'); }} 
-          onAddDesignation={() => setIsDesignationModalOpen(true)} 
-        />;
-      
-      case 'clients': 
-        if (!isAdmin) return null;
-        return <ClientsView clients={clients} projects={projects} onAddClient={handleInstantAddClient} onDeleteClient={(id) => { setClients(p => p.filter(c => c.id !== id)); apiPost('deleteRecord', { id }, 'Clients'); }} onEditClient={(c) => { setClients(p => p.map(x => x.id === c.id ? c : x)); apiPost('updateMaster', c, 'Clients'); }} onNavigateToProjectTasks={handleDashboardFilterChange.bind(null, 'project')} />;
-      
-      case 'projects': 
-        if (!isAdmin) return null;
-        return <ProjectsView projects={projects} clients={clients} onAddProject={handleInstantAddProject} onDeleteProject={(id) => { setProjects(p => p.filter(x => x.id !== id)); apiPost('deleteRecord', { id }, 'Projects'); }} onEditProject={(p) => { setProjects(prev => prev.map(x => x.id === p.id ? p : x)); apiPost('updateMaster', p, 'Projects'); }} onAddClient={() => setIsClientModalOpen(true)} onNavigateToProjectTasks={handleDashboardFilterChange.bind(null, 'project')} />;
-      
-      case 'categories': 
-        if (!isAdmin) return null;
-        return <CategoriesView categories={categories} onAddCategory={() => setIsCategoryModalOpen(true)} onDeleteCategory={(id) => { setCategories(p => p.filter(c => c.id !== id)); apiPost('deleteRecord', { id }, 'Categories'); }} onEditCategory={(c) => { setCategories(p => p.map(x => x.id === c.id ? c : x)); apiPost('updateMaster', c, 'Categories'); }} />;
-      
-      case 'settings': 
-        if (!isAdmin) return null;
-        return <SettingsView settings={settings} onUpdate={(s) => { setSettings(s); apiPost('updateMaster', s, 'AppSettings'); }} />;
-      
+      case 'recurring-actions': return <RecurringTaskActionsView actions={visibleRecurringActions} onDeleteAction={(logId, taskId) => apiPost('deleteRecord', { id: logId, taskId: taskId }, 'RecurringActions')} dashboardFilter={logDashboardFilter} onClearDashboardFilter={() => setLogDashboardFilter(null)} />;
+      case 'users': if (!isAdmin) return null; return <UsersView users={users} designations={designations} onAddUser={(u) => { setUsers(p => [...p, { ...u, id: Date.now(), isActive: true } as any]); apiPost('addMaster', u, 'Users'); }} onEditUser={(u) => { setUsers(p => p.map(x => x.id === u.id ? u : x)); apiPost('updateMaster', u, 'Users'); }} onToggleStatus={(id) => { const user = users.find(u => u.id === id); if (!user) return; const newStatus = !user.isActive; setUsers(prev => prev.map(u => u.id === id ? { ...u, isActive: newStatus } : u)); apiPost('updateMaster', { id, isActive: newStatus ? 'TRUE' : 'FALSE' }, 'Users'); }} onDeleteUser={(id) => { setUsers(p => p.filter(u => u.id !== id)); apiPost('deleteRecord', { id }, 'Users'); }} onAddDesignation={() => setIsDesignationModalOpen(true)} />;
+      case 'clients': if (!isAdmin) return null; return <ClientsView clients={clients} projects={projects} onAddClient={handleInstantAddClient} onDeleteClient={(id) => { setClients(p => p.filter(c => c.id !== id)); apiPost('deleteRecord', { id }, 'Clients'); }} onEditClient={(c) => { setClients(p => p.map(x => x.id === c.id ? c : x)); apiPost('updateMaster', c, 'Clients'); }} onNavigateToProjectTasks={handleDashboardFilterChange.bind(null, 'project')} />;
+      case 'projects': if (!isAdmin) return null; return <ProjectsView projects={projects} clients={clients} onAddProject={handleInstantAddProject} onDeleteProject={(id) => { setProjects(p => p.filter(x => x.id !== id)); apiPost('deleteRecord', { id }, 'Projects'); }} onEditProject={(p) => { setProjects(prev => prev.map(x => x.id === p.id ? p : x)); apiPost('updateMaster', p, 'Projects'); }} onAddClient={() => setIsClientModalOpen(true)} onNavigateToProjectTasks={handleDashboardFilterChange.bind(null, 'project')} />;
+      case 'categories': if (!isAdmin) return null; return <CategoriesView categories={categories} onAddCategory={() => setIsCategoryModalOpen(true)} onDeleteCategory={(id) => { setCategories(p => p.filter(c => c.id !== id)); apiPost('deleteRecord', { id }, 'Categories'); }} onEditCategory={(c) => { setCategories(p => p.map(x => x.id === c.id ? c : x)); apiPost('updateMaster', c, 'Categories'); }} />;
+      case 'settings': if (!isAdmin) return null; return <SettingsView settings={settings} onUpdate={(s) => { setSettings(s); apiPost('updateMaster', s, 'AppSettings'); }} />;
       default: return null;
     }
   };
-  // ... rest of App.tsx
+
+  const handleLayoutChange = (mode: 'side' | 'top') => { setLayoutMode(mode); localStorage.setItem('taskpro_layout', mode); };
+
+  return (
+    <div className={`flex h-screen bg-gray-50 overflow-hidden flex-col ${layoutMode === 'side' ? 'md:flex-row' : 'md:flex-col'}`}>
+      {layoutMode === 'side' ? (
+        <Sidebar items={navItems} activeTab={activeTab} onTabChange={setActiveTab} onLayoutChange={handleLayoutChange} layoutMode={layoutMode} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} lastSynced={lastSynced} isSyncing={isSyncing} onSync={fetchData} onLogout={() => { setCurrentUser(null); localStorage.removeItem('taskpro_user'); }} onExitWorkspace={() => { setCurrentUser(null); localStorage.clear(); }} workspaceId={workspaceId} />
+      ) : (
+        <TopBar items={navItems} activeTab={activeTab} onTabChange={setActiveTab} onLayoutChange={handleLayoutChange} layoutMode={layoutMode} lastSynced={lastSynced} isSyncing={isSyncing} onSync={fetchData} />
+      )}
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+        {layoutMode === 'side' && (
+          <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-blue-200 z-20">
+            <div className="flex items-center space-x-2"><img src="https://i.ibb.co/YBSjM7Gg/Chat-GPT-Image-Dec-18-2025-10-23-18-AM.png" className="h-8 w-8" alt="Logo" /><h1 className="text-lg font-bold text-blue-600">TaskPro</h1></div>
+            <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-blue-600"><Menu size={24} /></button>
+          </header>
+        )}
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col w-full">
+          <div className="flex-1">{renderContent()}</div>
+          <Footer />
+        </main>
+      </div>
+
+      <AddTaskModal isOpen={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)} onSave={(t) => handleAddTaskOptimistic(t, isTaskModalVendorMode)} isVendorView={isTaskModalVendorMode} users={users} categories={categories} projects={projects} vendors={vendors} vendorCategories={vendorCategories} onAddCategory={() => setIsCategoryModalOpen(true)} onAddProject={() => setIsProjectModalOpen(true)} onAddVendorCategory={() => setIsVendorCategoryModalOpen(true)} lastAddedCategory={lastAddedCategory} lastAddedProject={lastAddedProject} lastAddedVendorCategory={lastAddedVendorCategory} onClearLastAdded={() => { setLastAddedCategory(''); setLastAddedProject(''); setLastAddedVendorCategory(''); }} />
+      <AddCategoryModal isOpen={isCategoryModalOpen} onClose={() => setIsCategoryModalOpen(false)} onSave={handleInstantAddCategory} categories={categories} />
+      <AddVendorCategoryModal isOpen={isVendorCategoryModalOpen} onClose={() => setIsVendorCategoryModalOpen(false)} onSave={handleInstantAddVendorCategory} vendorCategories={vendorCategories} />
+      <AddProjectModal isOpen={isProjectModalOpen} onClose={() => setIsProjectModalOpen(false)} onSave={handleInstantAddProject} clients={clients} onAddClient={() => setIsClientModalOpen(true)} />
+      <AddUserModal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} onSave={(u) => apiPost('addMaster', u, 'Users')} designations={designations} onAddDesignation={() => setIsDesignationModalOpen(true)} users={users} />
+      <AddClientModal isOpen={isClientModalOpen} onClose={() => setIsClientModalOpen(false)} onSave={handleInstantAddClient} clients={clients} />
+      <AddVendorModal isOpen={isVendorModalOpen} onClose={() => setIsVendorModalOpen(false)} onSave={(v) => apiPost('addMaster', v, 'Vendors')} vendors={vendors} />
+      <AddDesignationModal isOpen={isDesignationModalOpen} onClose={() => setIsDesignationModalOpen(false)} onSave={(d) => apiPost('addMaster', d, 'Designations')} designations={designations} />
+      <AddRecurringTaskModal isOpen={isRecurringTaskModalOpen} onClose={() => setIsRecurringTaskModalOpen(false)} onSave={(t) => { const tempId = -Date.now(); const newTask: RecurringTask = { ...t, id: tempId, status: 'Not Yet Started', lastUpdatedOn: '', lastUpdateRemarks: '' }; setRecurringTasks(p => [newTask, ...p]); apiPost('addMaster', t, 'RecurringTasks'); }} users={users} categories={categories} />
+      <EditRecurringTaskModal isOpen={isEditRecurringTaskModalOpen} onClose={() => setIsEditRecurringTaskModalOpen(false)} task={selectedRecurringTask} onSave={(data) => { setRecurringTasks(p => p.map(t => t.id === data.id ? data : t)); apiPost('updateMaster', data, 'RecurringTasks'); }} users={users} categories={categories} />
+      <UpdateRecurringTaskModal isOpen={isRecurringTaskUpdateModalOpen} onClose={() => setIsRecurringTaskUpdateModalOpen(false)} task={selectedRecurringTask} onSave={async (updatedTask) => { const now = new Date(); const nowStr = now.toLocaleDateString('en-GB'); const timestampStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }); const shouldShiftAnchor = updatedTask.status === 'Complete'; const newAnchorDate = shouldShiftAnchor ? nowStr : (selectedRecurringTask?.lastUpdatedOn || selectedRecurringTask?.startDate || ''); setRecurringTasks(p => p.map(t => t.id === updatedTask.id ? { ...t, ...updatedTask, lastUpdatedOn: newAnchorDate } : t)); const newAction: RecurringTaskAction = { id: -Date.now(), taskId: updatedTask.id, taskTitle: updatedTask.title, category: updatedTask.category, assignee: updatedTask.assignee, status: updatedTask.status, remarks: updatedTask.lastUpdateRemarks || '', updatedOn: nowStr, timestamp: timestampStr }; setRecurringActions(p => [newAction, ...p]); await apiPost('updateMaster', { ...updatedTask, lastUpdatedOn: newAnchorDate }, 'RecurringTasks'); await apiPost('addMaster', { ...newAction, taskId: updatedTask.id }, 'RecurringActions'); }} />
+      <TaskHistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} task={selectedTaskForHistory} logs={actionLogs} />
+      <RecurringTaskHistoryModal isOpen={isRecurringHistoryModalOpen} onClose={() => setIsRecurringHistoryModalOpen(false)} task={selectedRecurringTask} actions={recurringActions} />
+      
+      {apiError && (
+        <div className="fixed bottom-4 right-4 z-50">
+           <div className="bg-red-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 border-2 border-red-400">
+             <AlertCircle size={24} /><p className="text-xs font-bold uppercase tracking-widest">{apiError}</p><button onClick={() => setApiError(null)}><X size={18} /></button>
+           </div>
+        </div>
+      )}
+    </div>
+  );
+}

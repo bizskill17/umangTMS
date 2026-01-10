@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { X, Download, Calendar, User, Users, Clock, Tag, Briefcase, History } from 'lucide-react';
+import { X, Download, Calendar, User, Users, Clock, Tag, Briefcase, History, Building2, Hammer } from 'lucide-react';
 import { ActionLogEntry, Task } from '../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -20,6 +20,10 @@ export const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({ isOpen, onCl
     const logTaskId = Number(log.taskId || 0);
     const currentTaskId = Number(task.id || 0);
     return logTaskId > 0 && logTaskId === currentTaskId;
+  }).sort((a, b) => { // Sort logs by updateDate descending
+    const dateA = new Date(a.updateDate.replace(/(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}) (AM|PM)/, '$3-$2-$1 $4:$5 $6'));
+    const dateB = new Date(b.updateDate.replace(/(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}) (AM|PM)/, '$3-$2-$1 $4:$5 $6'));
+    return dateB.getTime() - dateA.getTime();
   });
   
   const isVendorTask = !!(task.vendor && task.vendor.trim() !== '');
@@ -31,37 +35,42 @@ export const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({ isOpen, onCl
     doc.setFontSize(12);
     doc.setTextColor(0);
     doc.text(`Updates for: ${task.title}`, 14, 30);
+    doc.setFontSize(10);
+    doc.text(`Project: ${task.project.split(' (')[0]} | Client: ${task.clientName || '-'}`, 14, 36);
 
-    let tableColumn: string[] = [];
+    let tableColumn: string[] = ["Task Date", "Update Date", "Status", "Remarks", "Owner", "Project", "Client"];
     let tableRows: any[] = [];
 
     if (isVendorTask) {
-        tableColumn = ["Task Date", "Update Date", "Status", "Remarks", "Owner", "Vendor"];
+        tableColumn.push("Vendor");
         tableRows = taskLogs.map(log => [
             formatToIndianDate(log.taskDate),
             formatToIndianDate(log.updateDate),
             log.status,
             log.remarks || '-',
             log.owner,
+            log.project.split(' (')[0],
+            log.clientName || '-',
             log.vendor || '-'
         ]);
     } else {
-        tableColumn = ["Task Date", "Update Date", "Status", "Remarks", "Owner", "Assignees", "Project"];
+        tableColumn.push("Assignees");
         tableRows = taskLogs.map(log => [
             formatToIndianDate(log.taskDate),
             formatToIndianDate(log.updateDate),
             log.status,
             log.remarks || '-',
             log.owner,
-            log.assignees,
-            log.project
+            log.project.split(' (')[0],
+            log.clientName || '-',
+            log.assignees
         ]);
     }
 
     autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
-      startY: 35,
+      startY: 45, // Adjusted startY to make space for new header info
       styles: { fontSize: 8, cellPadding: 3 },
       headStyles: { fillColor: [59, 130, 246] },
     });
@@ -85,7 +94,8 @@ export const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({ isOpen, onCl
                    </button>
                 </div>
                 {task.category && <span className="flex items-center gap-1 text-[10px] uppercase font-bold text-black bg-blue-50/50 border border-blue-100 px-2 py-0.5 rounded"><Tag size={12} className="text-blue-500"/> {task.category}</span>}
-                <span className="flex items-center gap-1 text-[10px] uppercase font-bold text-black bg-blue-50/50 border border-blue-100 px-2 py-0.5 rounded"><Briefcase size={12} className="text-blue-500"/> {task.project}</span>
+                <span className="flex items-center gap-1 text-[10px] uppercase font-bold text-black bg-blue-50/50 border border-blue-100 px-2 py-0.5 rounded"><Briefcase size={12} className="text-blue-500"/> {task.project.split(' (')[0]}</span>
+                {task.clientName && <span className="flex items-center gap-1 text-[10px] uppercase font-bold text-black bg-blue-50/50 border border-blue-100 px-2 py-0.5 rounded"><Building2 size={12} className="text-blue-500"/> {task.clientName}</span>}
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-colors">
@@ -105,10 +115,14 @@ export const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({ isOpen, onCl
                  </div>
               </div>
               <div className="bg-gray-50/50 border border-blue-100 p-4 rounded-xl space-y-1">
-                 <span className="text-[10px] font-extrabold uppercase text-blue-400">Owner & Assignees</span>
+                 <span className="text-[10px] font-extrabold uppercase text-blue-400">Owner & Responsible</span>
                  <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase"><User size={12} className="text-blue-500"/> {task.owner}</div>
-                    {!isVendorTask && <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase"><Users size={12} className="text-blue-500"/> {task.assignees}</div>}
+                    {isVendorTask ? (
+                        <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase"><Hammer size={12} className="text-orange-500"/> {task.vendor}</div>
+                    ) : (
+                        <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase"><Users size={12} className="text-blue-500"/> {task.assignees}</div>
+                    )}
                  </div>
               </div>
               <div className="bg-gray-50/50 border border-blue-100 p-4 rounded-xl space-y-1">
@@ -129,46 +143,44 @@ export const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({ isOpen, onCl
               <table className="w-full text-left border-collapse min-w-[800px]">
                 <thead className="bg-blue-600">
                   <tr className="border-b border-blue-700">
-                    <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest border-r border-blue-500 last:border-r-0">Task Date</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest border-r border-blue-500 last:border-r-0">Update Date</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest border-r border-blue-500 last:border-r-0">Status</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest border-r border-blue-500 last:border-r-0">Remarks</th>
-                    <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest border-r border-blue-500 last:border-r-0">Owner(s)</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest border-r border-blue-500">Task Date</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest border-r border-blue-500">Update Date</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest border-r border-blue-500">Status</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest border-r border-blue-500">Remarks</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest border-r border-blue-500">Owner(s)</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest border-r border-blue-500">Project</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest border-r border-blue-500">Client</th>
                     {isVendorTask ? (
                         <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest">Vendor</th>
                     ) : (
-                        <>
-                          <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest border-r border-blue-500">Assignee(s)</th>
-                          <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest">Project</th>
-                        </>
+                        <th className="px-6 py-4 text-[10px] font-bold text-white uppercase tracking-widest">Assignee(s)</th>
                     )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-blue-50">
                   {taskLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="px-6 py-4 text-xs text-black font-bold whitespace-nowrap border-r border-blue-50 last:border-r-0">{formatToIndianDate(log.taskDate)}</td>
-                      <td className="px-6 py-4 text-xs text-black font-bold whitespace-nowrap border-r border-blue-50 last:border-r-0">{formatToIndianDate(log.updateDate)}</td>
-                      <td className="px-6 py-4 text-xs border-r border-blue-50 last:border-r-0">
+                      <td className="px-6 py-4 text-xs text-black font-bold whitespace-nowrap border-r border-blue-50">{formatToIndianDate(log.taskDate)}</td>
+                      <td className="px-6 py-4 text-xs text-black font-bold whitespace-nowrap border-r border-blue-50">{formatToIndianDate(log.updateDate)}</td>
+                      <td className="px-6 py-4 text-xs border-r border-blue-50">
                         <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-[10px] font-bold uppercase whitespace-nowrap border border-blue-200">
                             {log.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-xs text-black max-w-[300px] font-medium border-r border-blue-50 last:border-r-0">"{log.remarks}"</td>
-                      <td className="px-6 py-4 text-xs text-black font-bold uppercase border-r border-blue-50 last:border-r-0">{log.owner}</td>
+                      <td className="px-6 py-4 text-xs text-black max-w-[300px] font-medium border-r border-blue-50">"{log.remarks}"</td>
+                      <td className="px-6 py-4 text-xs text-black font-bold uppercase border-r border-blue-50">{log.owner}</td>
+                      <td className="px-6 py-4 text-xs text-black font-bold border-r border-blue-50 max-w-[150px] truncate" title={log.project.split(' (')[0]}>{log.project.split(' (')[0]}</td>
+                      <td className="px-6 py-4 text-xs text-black font-bold border-r border-blue-50 max-w-[150px] truncate" title={log.clientName}>{log.clientName || '-'}</td>
                       {isVendorTask ? (
                           <td className="px-6 py-4 text-xs text-black font-bold uppercase">{log.vendor || '-'}</td>
                       ) : (
-                          <>
-                              <td className="px-6 py-4 text-xs text-black font-bold border-r border-blue-50">{log.assignees}</td>
-                              <td className="px-6 py-4 text-xs text-black font-bold max-w-[150px] truncate" title={log.project}>{log.project}</td>
-                          </>
+                          <td className="px-6 py-4 text-xs text-black font-bold">{log.assignees}</td>
                       )}
                     </tr>
                   ))}
                   {taskLogs.length === 0 && (
                     <tr>
-                      <td colSpan={isVendorTask ? 6 : 7} className="px-6 py-12 text-center text-black font-bold opacity-40 uppercase tracking-widest text-xs bg-gray-50/20">
+                      <td colSpan={isVendorTask ? 8 : 8} className="px-6 py-12 text-center text-black font-bold opacity-40 uppercase tracking-widest text-xs bg-gray-50/20">
                         No update history found for this task.
                       </td>
                     </tr>

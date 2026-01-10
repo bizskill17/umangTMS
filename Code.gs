@@ -4,6 +4,7 @@
  * Google Sheets Integration Script
  */
 
+const SS = SpreadsheetApp.getActiveSpreadsheet();
 
 function testWhatsAppConnection() {
   const config = getMASConfig();
@@ -11,19 +12,25 @@ function testWhatsAppConnection() {
   
   Logger.log("Starting Manual Test...");
   Logger.log(`Using Username: ${config.username}`);
-      if (config.defaultGroup) {
+  if (config.defaultGroup) {
     Logger.log(`Attempting to send to Group: ${config.defaultGroup}`);
-    mobileNumber = "9864023964";
-    sendpersonalMessage(testMsg,  mobileNumber, config.username, config.password);
-    sendgroupMessage(testMsg, config.defaultGroup, config.username, config.password)
+    const mobileNumber = "9864023964";
+    sendpersonalMessage(testMsg, mobileNumber, config.username, config.password);
+    sendgroupMessage(testMsg, config.defaultGroup, config.username, config.password);
   } else {
     Logger.log("No default group ID found in AppSettings.");
   }
 }
 
-const SS = SpreadsheetApp.getActiveSpreadsheet();
+function testTelegramConnection() {
+  const config = getTelegramConfig();
+  if (!config.botToken) {
+    Logger.log("❌ No Telegram bot token found in AppSettings");
+    return;
+  }
+  Logger.log("✅ Telegram bot token configured: " + config.botToken.substring(0, 10) + "...");
+}
 
-// REPLACE your existing sheetToJSON with this:
 function sheetToJSON(sheetName) {
   const sheet = SS.getSheetByName(sheetName);
   if (!sheet) return [];
@@ -38,7 +45,6 @@ function sheetToJSON(sheetName) {
       if (val instanceof Date) {
         val = Utilities.formatDate(val, Session.getScriptTimeZone(), "dd-MM-yyyy");
       }
-      // FIX: Force "ID" header to always be lowercase "id"
       let key = (h === 'ID' || h === 'id') ? 'id' : h.charAt(0).toLowerCase() + h.slice(1);
       obj[key] = val;
     });
@@ -46,13 +52,30 @@ function sheetToJSON(sheetName) {
   });
 }
 
+function escapeMarkdown(text) {
+  if (!text) return "";
+  return text.toString()
+    .replace(/_/g, '\\_')
+    .replace(/\[/g, '\\[')
+    .replace(/`/g, '\\`');
+}
+
+function getUserRole(userName) {
+  if (!userName) return null;
+  try {
+    const users = sheetToJSON('Users');
+    const user = users.find(u => u.name && u.name.toString().trim().toLowerCase() === userName.trim().toLowerCase());
+    return user ? user.role : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function doGet(e) {
   const action = e.parameter.action;
-  
   try {
     let result;
     if (action === 'init') {
-      // Fetch all master data for the app startup
       result = {
         mainTasks: sheetToJSON('MainTasks'),
         vendorTasks: sheetToJSON('VendorTasks'),
@@ -69,9 +92,8 @@ function doGet(e) {
         settings: sheetToJSON('AppSettings')[0] || {}
       };
     } else {
-      result = sheetToJSON(action); // e.g. action=Users
+      result = sheetToJSON(action);
     }
-
     return ContentService.createTextOutput(JSON.stringify({ success: true, data: result }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -88,31 +110,30 @@ function doPost(e) {
   try {
     let result;
     switch (action) {
-      case 'addTask':
-        result = handleAddTask(payload);
+      case 'addTask': 
+        result = handleAddTask(payload); 
         break;
-      case 'updateTask':
-        result = handleUpdateTask(payload);
+      case 'updateTask': 
+        result = handleUpdateTask(payload); 
         break;
-      case 'addMaster':
-        result = handleAddMaster(params.target, payload);
-        if (params.target === 'RecurringTasks') {
-          handleRecurringTaskNotification(payload, true);
-        }
-        break;
-      case 'updateMaster':
-        result = handleUpdateMaster(params.target, payload);
+      case 'addMaster': 
+        result = handleAddMaster(params.target, payload); 
         if (params.target === 'RecurringTasks' || params.target === 'RecurringActions') {
-          handleRecurringTaskNotification(payload, false);
+           handleRecurringTaskNotification(payload, params.target === 'RecurringTasks');
         }
         break;
-      case 'deleteRecord':
-        result = handleDeleteRecord(params.target, payload.id);
+      case 'updateMaster': 
+        result = handleUpdateMaster(params.target, payload); 
+        if (params.target === 'RecurringTasks') {
+           handleRecurringTaskNotification(payload, false);
+        }
         break;
-      default:
+      case 'deleteRecord': 
+        result = handleDeleteRecord(params.target, payload.id); 
+        break;
+      default: 
         throw new Error("Invalid action: " + action);
     }
-    
     return ContentService.createTextOutput(JSON.stringify({ success: true, data: result }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -125,101 +146,82 @@ function handleAddTask(data) {
   const isVendor = !!(data.vendor && data.vendor.trim() !== '');
   const sheetName = isVendor ? 'VendorTasks' : 'MainTasks';
   const sheet = SS.getSheetByName(sheetName);
-  
   const id = new Date().getTime();
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   
-  // Normalizing incoming data keys for robust matching
   const normalizedData = {};
-  Object.keys(data).forEach(k => {
-    normalizedData[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = data[k];
-  });
+  Object.keys(data).forEach(k => { normalizedData[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = data[k]; });
 
   const rowData = headers.map(h => {
-    const hClean = h.toString().trim();
-    const hLower = hClean.toLowerCase().replace(/[^a-z0-9]/g, '');
-    
+    const hLower = h.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
     if (hLower === 'id') return id;
-    if (hLower === 'date') return new Date(); // New tasks always get current date
+    if (hLower === 'date') return new Date();
     if (hLower === 'status') return 'Not Yet Started';
     if (hLower === 'lastupdatedate') return new Date();
-    
-    // Priority field mappings for Vendor tasks
-    if (hLower === 'vendorcategory') {
-      const v = data.vendorCategory !== undefined ? data.vendorCategory : (data.category !== undefined && data.category !== "" ? data.category : "");
-      if (v !== undefined && v !== null) return v;
-    }
-    
+    if (hLower === 'vendorcategory') return data.vendorCategory || "";
     if (hLower === 'clientname') return data.clientName || "";
+    if (hLower === 'project') return data.project || "";
     if (hLower === 'duedate') return data.dueDate || "";
     if (hLower === 'lastupdateremarks') return data.remarks || "";
-    
-    // General matching using normalized keys
     if (normalizedData[hLower] !== undefined) return normalizedData[hLower];
-
-    // CamelCase/PascalCase fallback matching on original object
-    let key = hClean.charAt(0).toLowerCase() + hClean.slice(1);
-    if (data[key] !== undefined) return data[key];
-    
     return "";
   });
   
   sheet.appendRow(rowData);
 
+  // Notification Logic
   try {
     const config = getMASConfig();
     const creationTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy hh:mm a");
+    const client = data.clientName || '-';
+    const project = data.project || '-';
+    const taskTitle = data.title || data.task;
     
+    // Check for self-assignment + Admin role
+    const ownerRole = getUserRole(data.owner);
+    const isSelfAssignment = data.assignees && data.owner && data.assignees.trim() === data.owner.trim();
+    const skipPersonalMsg = isSelfAssignment && ownerRole === 'Admin'; // If Admin self-assigns, skip personal
+
     let msg;
     if (isVendor) {
       msg = `*New Vendor Task*\n\n` +
-            `*Task:* ${data.title || data.task}\n` +
-            `*Vendor:* ${data.vendor}\n` +
-            `*Category:* ${data.vendorCategory || '-'}\n` +
-            `*Remarks:* ${data.remarks || '-'}\n` +
+            `*Task:* ${escapeMarkdown(taskTitle)}\n` +
+            `*Vendor:* ${escapeMarkdown(data.vendor)}\n` +
+            `*Project:* ${escapeMarkdown(project)}\n` +
+            `*Client:* ${escapeMarkdown(client)}\n` +
             `*Due Date:* ${formatDateDMY(data.dueDate)}\n` +
-            `*Task Owner:* ${data.owner}\n` +
             `*Created At:* ${creationTime}`;
     } else {
       msg = `*New Task Assigned*\n\n` +
-            `*Task:* ${data.title || data.task}\n` +
-            `*Client:* ${data.clientName || '-'}\n` +
-            `*Project:* ${data.project}\n` +
-            `*Remarks:* ${data.remarks || '-'}\n` +
+            `*Task:* ${escapeMarkdown(taskTitle)}\n` +
+            `*Client:* ${escapeMarkdown(client)}\n` +
+            `*Project:* ${escapeMarkdown(project)}\n` +
             `*Due Date:* ${formatDateDMY(data.dueDate)}\n` +
-            `*Assignees:* ${data.assignees || 'Not assigned'}\n` +
-            `*Task Owner:* ${data.owner}\n` +
+            `*Assignees:* ${escapeMarkdown(data.assignees || 'Not assigned')}\n` +
             `*Created At:* ${creationTime}`;
     }
 
-    if (isVendor) {
-      if (data.vendor) {
-        const vendorMobile = getVendorMobile(data.vendor);
-        if (vendorMobile && String(vendorMobile).trim().length === 10) {
-          sendpersonalMessage(msg, vendorMobile, config.username, config.password);
+    if (!skipPersonalMsg) { // Only send personal message if not Admin self-assigning
+        if (isVendor && data.vendor) {
+          const vendorMobile = getVendorMobile(data.vendor);
+          if (vendorMobile) sendpersonalMessage(msg, vendorMobile, config.username, config.password);
+        } else if (data.assignees) {
+          data.assignees.split(',').forEach(name => {
+            const mobile = getUserMobile(name.trim());
+            if (mobile) sendpersonalMessage(msg, mobile, config.username, config.password);
+          });
         }
-      }
-    } else {
-      if (data.assignees) {
-        data.assignees.split(',').forEach(name => {
-          const mobile = getUserMobile(name.trim());
-          if (mobile && String(mobile).trim().length === 10) {
-            sendpersonalMessage(msg, mobile, config.username, config.password);
-          }
-        });
-      }
     }
 
-    // Skip group notifications if owner assigns to self
-    const isSelfAssignment = data.assignees && data.owner && data.assignees.trim() === data.owner.trim();
-    
-    if (data.project && !isSelfAssignment) {
-      sendToProjectWhatsAppGroup(data.project, msg);
-      sendToProjectTelegramGroup(data.project, msg);
+    const rawProjectName = project.trim();
+    if (rawProjectName && rawProjectName !== '-') {
+      sendToProjectWhatsAppGroup(rawProjectName, msg);
+      // Only send Telegram group message if not Admin self-assigning
+      if (!skipPersonalMsg) {
+        sendToProjectTelegramGroup(rawProjectName, msg);
+      }
     }
-  } catch (e) {
-    Logger.log("Notification Error: " + e.message);
-  }
+  } catch (e) { Logger.log("Notification Error: " + e.message); }
 
   return { id: id };
 }
@@ -228,137 +230,74 @@ function handleUpdateTask(data) {
   const isVendor = !!(data.vendor && data.vendor.trim() !== '');
   const sheetName = isVendor ? 'VendorTasks' : 'MainTasks';
   const logSheetName = isVendor ? 'VendorTaskActionLog' : 'MainTaskActionLog';
-  
   const sheet = SS.getSheetByName(sheetName);
   const values = sheet.getDataRange().getValues();
   const headers = values[0];
   
   let rowIndex = -1;
   for (let i = 1; i < values.length; i++) {
-    if (values[i][0] == data.id) {
-      rowIndex = i + 1;
-      break;
-    }
+    if (values[i][0] == data.id) { rowIndex = i + 1; break; }
   }
-  
   if (rowIndex === -1) throw new Error("Task ID not found");
   
-  const oldRowData = values[rowIndex - 1];
-  const priorityIndex = headers.findIndex(h => h.toLowerCase().includes('priority'));
-  const oldPriority = oldRowData[priorityIndex];
-
-  // Robust data normalization for matching
   const normalizedData = {};
-  Object.keys(data).forEach(k => {
-    normalizedData[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = data[k];
-  });
-
-  let fieldsChangedBesidesPriority = false;
+  Object.keys(data).forEach(k => { normalizedData[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = data[k]; });
 
   headers.forEach((h, i) => {
-    const hClean = h.toString().trim();
-    const hLower = hClean.toLowerCase().replace(/[^a-z0-9]/g, '');
-    
-    // Skip immutable fields
+    const hLower = h.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
     if (hLower === 'id' || hLower === 'date') return;
-    
-    if (hLower === 'lastupdatedate') {
-      sheet.getRange(rowIndex, i + 1).setValue(new Date());
-      return;
-    }
-
-    // Check if fields other than Priority changed
-    if (hLower !== 'priority') {
-      let newValue = normalizedData[hLower];
-      if (newValue === undefined) {
-         let key = hClean.charAt(0).toLowerCase() + hClean.slice(1);
-         newValue = data[key];
-      }
-      if (newValue !== undefined && newValue != oldRowData[i]) {
-         fieldsChangedBesidesPriority = true;
-      }
-    }
-
-    // Explicit Priority Mappings
-    if (hLower === 'vendorcategory' && data.vendorCategory !== undefined) {
-      sheet.getRange(rowIndex, i + 1).setValue(data.vendorCategory);
-      return;
-    }
-    if (hLower === 'lastupdateremarks' && data.lastUpdateRemarks !== undefined) {
-      sheet.getRange(rowIndex, i + 1).setValue(data.lastUpdateRemarks);
-      return;
-    }
-
-    // Match by normalized key
-    if (normalizedData[hLower] !== undefined) {
-      sheet.getRange(rowIndex, i + 1).setValue(normalizedData[hLower]);
-    } else {
-      // Standard key matching fallback
-      let key = hClean.charAt(0).toLowerCase() + hClean.slice(1);
-      if (data[key] !== undefined) {
-        sheet.getRange(rowIndex, i + 1).setValue(data[key]);
-      }
-    }
+    if (hLower === 'lastupdatedate') { sheet.getRange(rowIndex, i + 1).setValue(new Date()); return; }
+    if (hLower === 'vendorcategory' && data.vendorCategory !== undefined) { sheet.getRange(rowIndex, i + 1).setValue(data.vendorCategory); return; }
+    if (hLower === 'lastupdateremarks' && data.lastUpdateRemarks !== undefined) { sheet.getRange(rowIndex, i + 1).setValue(data.lastUpdateRemarks); return; }
+    if (normalizedData[hLower] !== undefined) { sheet.getRange(rowIndex, i + 1).setValue(normalizedData[hLower]); }
   });
   
-  // LOGGING LOGIC: Skip row addition if skipLog flag is true (used for "Edit" actions)
   if (!data.skipLog) {
     const logSheet = SS.getSheetByName(logSheetName);
     const logHeaders = logSheet.getRange(1, 1, 1, logSheet.getLastColumn()).getValues()[0];
     const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy hh:mm a");
-    
     const logRow = logHeaders.map(h => {
-      if (h === 'ID') return new Date().getTime();
-      if (h === 'TaskID') return data.id;
-      if (h === 'TaskTitle') return data.title || values[rowIndex-1][headers.indexOf('Title')] || values[rowIndex-1][headers.indexOf('task')] || "";
-      if (h === 'UpdateDate') return timestamp;
-      if (h === 'Remarks') return data.lastUpdateRemarks || data.remarks || "-";
+      const hLower = h.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (hLower === 'id') return new Date().getTime();
+      if (hLower === 'taskid') return data.id;
+      if (hLower === 'updatedate') return timestamp;
+      if (hLower === 'remarks') return data.lastUpdateRemarks || data.remarks || "-";
       
-      const hClean = h.toString().trim();
-      const hLower = hClean.toLowerCase().replace(/[^a-z0-9]/g, '');
+      // Explicit mapping for columns not directly matched by normalized key
+      if (hLower === 'tasktitle') return data.title || data.task || "";
+      if (hLower === 'taskdate') return data.date || "";
 
       if (normalizedData[hLower] !== undefined) return normalizedData[hLower];
-
-      let key = hClean.charAt(0).toLowerCase() + hClean.slice(1);
-      return data[key] || values[rowIndex-1][headers.indexOf(h)] || "";
+      return "";
     });
-    
     logSheet.appendRow(logRow);
-  }
-  
-  // Skip notification if only priority changed OR if skipLog is requested
-  if (!data.skipLog && (fieldsChangedBesidesPriority || data.status || data.lastUpdateRemarks)) {
+
+    // Update Notification
     try {
       const config = getMASConfig();
-      const taskTitle = data.title || values[rowIndex-1][headers.findIndex(h => h.toLowerCase().includes('title'))];
-      const taskStatus = data.status || values[rowIndex-1][headers.findIndex(h => h.toLowerCase().includes('status'))];
-      const taskRemarks = data.lastUpdateRemarks || data.remarks || "-";
-      const taskOwner = data.owner || values[rowIndex-1][headers.findIndex(h => h.toLowerCase().includes('owner'))];
-      const updateTimestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy hh:mm a");
+      const updateMsg = `📝 *Task Updated*\n\n` +
+                        `*Task:* ${escapeMarkdown(data.title || data.task)}\n` +
+                        `*Status:* ${data.status}\n` +
+                        `*Remarks:* ${escapeMarkdown(data.lastUpdateRemarks || '-')}\n` +
+                        `*Updated At:* ${timestamp}`;
       
-      let updateMsg = `📝 *Task Updated*\n\n` +
-                   `*Task:* ${taskTitle}\n` +
-                   `*Status:* ${taskStatus}\n` +
-                   `*Remarks:* ${taskRemarks}\n` +
-                   `*Updated At:* ${updateTimestamp}\n\n`;
-    
-      if (taskOwner) {
-        const ownerMobile = getUserMobile(taskOwner);
-        if (ownerMobile && String(ownerMobile).trim().length === 10) {
-          sendpersonalMessage(updateMsg, ownerMobile, config.username, config.password);
+      const ownerRole = getUserRole(data.owner);
+      const isSelfAssignment = data.assignees && data.owner && data.assignees.trim() === data.owner.trim();
+      const skipPersonalMsg = isSelfAssignment && ownerRole === 'Admin';
+
+      if (data.owner && !skipPersonalMsg) { // Only send personal message to owner if not Admin self-assigning
+        const ownerMobile = getUserMobile(data.owner);
+        if (ownerMobile) sendpersonalMessage(updateMsg, ownerMobile, config.username, config.password);
+      }
+      if (data.project) {
+        sendToProjectWhatsAppGroup(data.project, updateMsg);
+        // Only send Telegram group message if not Admin self-assigning
+        if (!skipPersonalMsg) {
+          sendToProjectTelegramGroup(data.project, updateMsg);
         }
       }
-
-      const projectName = data.project || values[rowIndex-1][headers.findIndex(h => h.toLowerCase().includes('project'))];
-      if (projectName) {
-        sendToProjectWhatsAppGroup(projectName, updateMsg);
-        sendToProjectTelegramGroup(projectName, updateMsg);
-      }
-    } catch (e) {
-      Logger.log("Update Notification Error: " + e.message);
-    }
+    } catch (e) { Logger.log("Update Notification Error: " + e.message); }
   }
-  
   return true;
 }
 
@@ -366,14 +305,16 @@ function handleAddMaster(target, data) {
   const sheet = SS.getSheetByName(target);
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const id = new Date().getTime();
-  
+  const normalizedData = {};
+  Object.keys(data).forEach(k => { normalizedData[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = data[k]; });
+
   const rowData = headers.map(h => {
-    if (h === 'ID') return id;
-    if (h === 'IsActive') return true;
-    let key = h.charAt(0).toLowerCase() + h.slice(1);
-    return data[key] || "";
+    const hLower = h.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (hLower === 'id') return id;
+    if (hLower === 'isactive') return true;
+    if (normalizedData[hLower] !== undefined) return normalizedData[hLower];
+    return "";
   });
-  
   sheet.appendRow(rowData);
   return { id: id };
 }
@@ -382,22 +323,14 @@ function handleUpdateMaster(target, data) {
   const sheet = SS.getSheetByName(target);
   const values = sheet.getDataRange().getValues();
   const headers = values[0];
-  
   let rowIndex = -1;
   for (let i = 1; i < values.length; i++) {
-    if (values[i][0] == data.id) {
-      rowIndex = i + 1;
-      break;
-    }
+    if (values[i][0] == data.id) { rowIndex = i + 1; break; }
   }
-  
   if (rowIndex === -1) throw new Error("Record ID not found");
-  
   headers.forEach((h, i) => {
     let key = h.charAt(0).toLowerCase() + h.slice(1);
-    if (data[key] !== undefined) {
-      sheet.getRange(rowIndex, i + 1).setValue(data[key]);
-    }
+    if (data[key] !== undefined) { sheet.getRange(rowIndex, i + 1).setValue(data[key]); }
   });
   return true;
 }
@@ -405,173 +338,139 @@ function handleUpdateMaster(target, data) {
 function handleDeleteRecord(target, id) {
   const sheet = SS.getSheetByName(target);
   const values = sheet.getDataRange().getValues();
-  
   for (let i = 1; i < values.length; i++) {
-    if (values[i][0] == id) {
-      sheet.deleteRow(i + 1);
-      return true;
-    }
+    if (values[i][0] == id) { sheet.deleteRow(i + 1); return true; }
   }
   return false;
 }
 
 function formatDateDMY(dateValue) {
   if (!dateValue) return "";
-  let date;
-  if (dateValue instanceof Date) date = dateValue;
-  else if (typeof dateValue === 'string' || typeof dateValue === 'number') date = new Date(dateValue);
-  else return String(dateValue);
+  let date = (dateValue instanceof Date) ? dateValue : new Date(dateValue);
   if (isNaN(date.getTime())) return String(dateValue);
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), "dd/MM/yyyy");
 }
 
 function getVendorMobile(vendorName) {
-  try {
-    const vendors = sheetToJSON('Vendors');
-    const vendor = vendors.find(v => v.name && v.name.trim().toLowerCase() === vendorName.trim().toLowerCase());
-    if (vendor && vendor.mobile) {
-      const mobileDigits = String(vendor.mobile).replace(/\D/g, '');
-      if (mobileDigits.length === 10) return mobileDigits;
-      if (mobileDigits.length === 12 && mobileDigits.startsWith('91')) return mobileDigits.substring(2);
-    }
-    return null;
-  } catch (e) {
-    return null;
-  }
+  const vendors = sheetToJSON('Vendors');
+  const vendor = vendors.find(v => v.name && v.name.toString().trim().toLowerCase() === vendorName.trim().toLowerCase());
+  return vendor ? String(vendor.mobile).replace(/\D/g, '').slice(-10) : null;
+}
+
+function getUserMobile(userName) {
+  const users = sheetToJSON('Users');
+  const user = users.find(u => u.name && u.name.toString().trim().toLowerCase() === userName.trim().toLowerCase());
+  return user ? String(user.mobile).replace(/\D/g, '').slice(-10) : null;
 }
 
 function getProjectWhatsAppGroup(projectName) {
-  try {
-    const projects = sheetToJSON('Projects');
-    const project = projects.find(p => p.name && p.name.trim().toLowerCase() === projectName.trim().toLowerCase());
-    return (project && project.whatsappGroupId) || '';
-  } catch (e) {
-    return '';
-  }
+  const projects = sheetToJSON('Projects');
+  const project = projects.find(p => p.name && p.name.toString().trim().toLowerCase() === projectName.trim().toLowerCase());
+  return project ? (project.whatsAppGroupID || project.whatsappGroupId || '') : '';
 }
 
 function getProjectTelegramGroup(projectName) {
-  try {
-    const projects = sheetToJSON('Projects');
-    const project = projects.find(p => p.name && p.name.trim().toLowerCase() === projectName.trim().toLowerCase());
-    return (project && project.telegramGroupId) || '';
-  } catch (e) {
-    return '';
-  }
+  const projects = sheetToJSON('Projects');
+  const project = projects.find(p => p.name && p.name.toString().trim().toLowerCase() === projectName.trim().toLowerCase());
+  return project ? (project.telegramGroupID || project.telegramGroupId || '') : '';
 }
 
 function sendToProjectWhatsAppGroup(projectName, message) {
-  try {
-    const config = getMASConfig();
-    const groupId = getProjectWhatsAppGroup(projectName);
-    if (groupId) {
-      sendgroupMessage(message, groupId, config.username, config.password);
-    }
-  } catch (e) {}
+  const config = getMASConfig();
+  const groupId = getProjectWhatsAppGroup(projectName);
+  if (groupId) sendgroupMessage(message, groupId, config.username, config.password);
 }
 
 function sendToProjectTelegramGroup(projectName, message) {
-  try {
-    const telegramConfig = getTelegramConfig();
-    const groupId = getProjectTelegramGroup(projectName);
-    if (telegramConfig.botToken && groupId) {
-      sendTelegramMessage(groupId, message, telegramConfig.botToken);
-    }
-  } catch (e) {}
+  const config = getTelegramConfig();
+  const groupId = getProjectTelegramGroup(projectName);
+  if (config.botToken && groupId) sendTelegramMessage(groupId, message, config.botToken);
 }
 
 function getTelegramConfig() {
-  const settingsArray = sheetToJSON('AppSettings');
-  const settings = settingsArray[0] || {};
-  return {
-    botToken: settings.officeTokenId || "",
-    chatId: settings.officeTelegramGroupId || ""
-  };
+  const settings = sheetToJSON('AppSettings')[0] || {};
+  return { botToken: settings.officeTokenId || "", chatId: settings.officeTelegramGroupId || "" };
+}
+
+function getMASConfig() {
+  const settings = sheetToJSON('AppSettings')[0] || {};
+  return { username: settings.masId || "", password: settings.masPassword || "", defaultGroup: settings.whatsappGroupId || "" };
 }
 
 function sendTelegramMessage(chatId, text, botToken) {
   const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-  const payload = {
-    chat_id: chatId,
-    text: text,
-    parse_mode: 'Markdown'
-  };
-  const options = {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify(payload)
-  };
-  UrlFetchApp.fetch(url, options);
-}
-
-function getMASConfig() {
-  const settingsArray = sheetToJSON('AppSettings');
-  const settings = settingsArray[0] || {};
-  return {
-    username: settings.masId || "",
-    password: settings.masPassword || "",
-    defaultGroup: settings.whatsappGroupId || ""
-  };
-}
-
-function getUserMobile(userName) {
-  if (!userName) return null;
+  const payload = { chat_id: chatId, text: text, parse_mode: 'Markdown' };
+  const options = { method: 'post', contentType: 'application/json', payload: JSON.stringify(payload), muteHttpExceptions: true };
   try {
-    const users = sheetToJSON('Users');
-    const user = users.find(u => u.name && u.name.trim().toLowerCase() === userName.trim().toLowerCase());
-    return user ? user.mobile : null;
-  } catch (e) {
-    return null;
-  }
+    const response = UrlFetchApp.fetch(url, options);
+    if (response.getResponseCode() !== 200) {
+      Logger.log("Telegram Error: " + response.getContentText());
+    }
+  } catch (e) { Logger.log("Telegram Fetch Error: " + e.message); }
 }
 
 function sendpersonalMessage(waMessage, mobileNumber, username, password) {
-  var url = "https://app.messageautosender.com/api/v1/message/create";
-  var payload = {
-    "receiverMobileNo": mobileNumber,
-    "message": [waMessage.toString()]
-  };
-  var options = {
+  const url = "https://app.messageautosender.com/api/v1/message/create";
+  const payload = { "receiverMobileNo": mobileNumber, "message": [waMessage.toString()] };
+  const options = {
     'method': 'post',
     'contentType': 'application/json',
     'payload': JSON.stringify(payload),
-    'headers': {
-      'accept': 'application/json',
-      'Authorization': 'Basic ' + Utilities.base64Encode(username + ":" + password)
-    }
+    'headers': { 'Authorization': 'Basic ' + Utilities.base64Encode(username + ":" + password) },
+    'muteHttpExceptions': true
   };
-  try {
-    UrlFetchApp.fetch(url, options);
-  } catch (e) {
-    Logger.log(e);
-  }
+  try { UrlFetchApp.fetch(url, options); } catch (e) { Logger.log(e); }
 }
 
 function sendgroupMessage(waMessage, groupId, username, password) {
-  var url = "https://app.messageautosender.com/api/v1/message/create-group-message";
-  var payload = {
-    "groupInviteCode": groupId,
-    "message": [waMessage.toString()]
-  };
-  var options = {
+  const url = "https://app.messageautosender.com/api/v1/message/create-group-message";
+  const payload = { "groupInviteCode": groupId, "message": [waMessage.toString()] };
+  const options = {
     'method': 'post',
     'contentType': 'application/json',
     'payload': JSON.stringify(payload),
-    'headers': {
-      'accept': 'application/json',
-      'Authorization': 'Basic ' + Utilities.base64Encode(username + ":" + password)
-    }
+    'headers': { 'Authorization': 'Basic ' + Utilities.base64Encode(username + ":" + password) },
+    'muteHttpExceptions': true
   };
-  try {
-    UrlFetchApp.fetch(url, options);
-  } catch (e) {
-    Logger.log(e);
-  }
+  try { UrlFetchApp.fetch(url, options); } catch (e) { Logger.log(e); }
 }
 
 function handleRecurringTaskNotification(data, isNew) {
-  // Logic for recurring task notifications if needed
+  try {
+    const config = getMASConfig();
+    const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy hh:mm a");
+    const taskTitle = data.title || data.taskTitle;
+    const assignee = data.assignee;
+    
+    let msg;
+    if (isNew) {
+      msg = `🔄 *New Recurring Task Configured*\n\n` +
+            `*Task:* ${escapeMarkdown(taskTitle)}\n` +
+            `*Category:* ${data.category}\n` +
+            `*Assignee:* ${escapeMarkdown(assignee)}\n` +
+            `*Start Date:* ${formatDateDMY(data.startDate)}\n` +
+            `*Periodicity:* ${data.periodicity}\n` +
+            `*Configured At:* ${timestamp}`;
+    } else {
+      msg = `✅ *Recurring Task Activity*\n\n` +
+            `*Task:* ${escapeMarkdown(taskTitle)}\n` +
+            `*Assignee:* ${escapeMarkdown(assignee)}\n` +
+            `*Status:* ${data.status}\n` +
+            `*Remarks:* ${escapeMarkdown(data.remarks || data.lastUpdateRemarks || '-')}\n` +
+            `*Updated At:* ${timestamp}`;
+    }
+
+    // Personal WhatsApp to Assignee
+    if (assignee) {
+      const mobile = getUserMobile(assignee.trim());
+      if (mobile) sendpersonalMessage(msg, mobile, config.username, config.password);
+    }
+
+    // Telegram Group notification from AppSettings (Column C)
+    const telegramConfig = getTelegramConfig();
+    if (telegramConfig.botToken && telegramConfig.chatId) {
+      sendTelegramMessage(telegramConfig.chatId, msg, telegramConfig.botToken);
+    }
+    
+  } catch (e) { Logger.log("Recurring Notification Error: " + e.message); }
 }

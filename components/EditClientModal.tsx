@@ -49,28 +49,6 @@ export const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClos
     return null;
   };
 
-  const validateEmail = (email: string) => {
-    if (!email) return null; 
-    const parts = email.split('@');
-    if (parts.length === 2 && !parts[1].includes('.')) return "Please enter Correct Email Id";
-    const regex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
-    if (!regex.test(email)) return "Please enter Correct Email Id";
-
-    // Uniqueness check for email (excluding current client)
-    if (clients.some(c => c.id !== client.id && c.email.toLowerCase().trim() === email.toLowerCase().trim() && email.trim() !== '')) {
-        return "This email is already registered for another client.";
-    }
-
-    return null;
-  };
-
-  const validateMobile = (mobile: string) => {
-      if (!mobile) return null; 
-      const mobileRegex = /^\d{10}$/;
-      if (!mobileRegex.test(mobile)) return "Please enter 10 Digit Number";
-      return null;
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -80,12 +58,12 @@ export const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClos
       newErrors.name = "This client name already exists.";
     }
 
-    const emailError = validateEmail(formData.email);
-    const mobileError = validateMobile(formData.mobile);
+    const mobileRegex = /^\d{10}$/;
+    if (formData.mobile && !mobileRegex.test(formData.mobile)) {
+        newErrors.mobile = "Please enter 10 Digit Number";
+    }
+
     const gstError = validateGst(formData.gstNumber);
-    
-    if (emailError) newErrors.email = emailError;
-    if (mobileError) newErrors.mobile = mobileError;
     if (gstError) newErrors.gstNumber = gstError;
 
     if (Object.keys(newErrors).length > 0) {
@@ -145,10 +123,9 @@ export const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClos
                     type="text"
                     value={formData.email}
                     onChange={handleChange}
-                    className={`w-full px-4 py-2.5 bg-white border rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 outline-none text-gray-900 ${errors.email ? 'border-red-500' : 'border-gray-200'}`}
+                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 outline-none text-gray-900"
                     placeholder="contact@example.com"
                 />
-                {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
                 </div>
                 <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-900">Mobile</label>

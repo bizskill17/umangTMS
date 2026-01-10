@@ -1,8 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Task, Project, User as UserType } from '../types';
-// Added Clock to the imports from lucide-react
-import { Edit2, Info, Calendar, Clock, User, Users, Briefcase, ArrowUpDown, ArrowUp, ArrowDown, Loader2, Trash2, Tag, Layout, Building2, Layers, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Edit2, Info, Calendar, Clock, User, Users, Briefcase, ArrowUpDown, ArrowUp, ArrowDown, Loader2, Trash2, Tag, Layout, Building2, Layers, AlertTriangle, ChevronDown, ChevronUp, Hammer } from 'lucide-react';
 import { formatToIndianDate } from '../App';
 
 interface TaskTableProps {
@@ -113,14 +112,15 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                 <th className={thClass} onClick={() => requestSort('date')}><div className="flex items-center">Date {getSortIcon('date')}</div></th>
                 <th className={thClass} onClick={() => requestSort('title')}><div className="flex items-center">Task {getSortIcon('title')}</div></th>
                 <th className={thClass} onClick={() => requestSort('remarks')}><div className="flex items-center">Notes {getSortIcon('remarks')}</div></th>
-                <th className={thClass} onClick={() => requestSort('category')}><div className="flex items-center">{isVendorView ? 'Vendor Category' : 'Category'} {getSortIcon('category')}</div></th>
-                {!isVendorView && <th className={thClass} onClick={() => requestSort('assignees')}><div className="flex items-center">Assignees {getSortIcon('assignees')}</div></th>}
+                <th className={thClass} onClick={() => requestSort('category')}><div className="flex items-center">Category{getSortIcon('category')}</div></th>
+                {/* Unified Responsible Party Column */}
+                <th className={thClass} onClick={() => requestSort(isVendorView ? 'vendor' : 'assignees')}><div className="flex items-center">{isVendorView ? 'Vendor' : 'Assignees'} {getSortIcon(isVendorView ? 'vendor' : 'assignees')}</div></th>
                 <th className={thClass} onClick={() => requestSort('owner')}><div className="flex items-center">Owner {getSortIcon('owner')}</div></th>
-                {!isVendorView && <th className={thClass} onClick={() => requestSort('project')}><div className="flex items-center">Project {getSortIcon('project')}</div></th>}
-                {!isVendorView && <th className={thClass} onClick={() => requestSort('clientName')}><div className="flex items-center">Client {getSortIcon('clientName')}</div></th>}
-                {isVendorView && <th className={thClass} onClick={() => requestSort('vendor')}><div className="flex items-center">Vendor {getSortIcon('vendor')}</div></th>}
+                {/* Project and Client are now always present */}
+                <th className={thClass} onClick={() => requestSort('project')}><div className="flex items-center">Project {getSortIcon('project')}</div></th>
+                <th className={thClass} onClick={() => requestSort('clientName')}><div className="flex items-center">Client {getSortIcon('clientName')}</div></th>
                 <th className={thClass} onClick={() => requestSort('status')}><div className="flex items-center">Status {getSortIcon('status')}</div></th>
-                <th className={thClass} onClick={() => requestSort('lastUpdateDate')}><div className="flex items-center">{isVendorView ? 'Update Date' : 'Last Date'} {getSortIcon('lastUpdateDate')}</div></th>
+                <th className={thClass} onClick={() => requestSort('lastUpdateDate')}><div className="flex items-center">Last Update {getSortIcon('lastUpdateDate')}</div></th>
                 <th className={thClass} onClick={() => requestSort('lastUpdateRemarks')}><div className="flex items-center">Remark {getSortIcon('lastUpdateRemarks')}</div></th>
                 <th className={thClass} onClick={() => requestSort('priority')}><div className="flex items-center">Priority {getSortIcon('priority')}</div></th>
                 <th className={thClass} onClick={() => requestSort('dueDate')}><div className="flex items-center">Due Date {getSortIcon('dueDate')}</div></th>
@@ -131,7 +131,8 @@ export const TaskTable: React.FC<TaskTableProps> = ({
               {tasks.map((task, idx) => {
                 const isSyncing = syncingIds.has(task.id);
                 const canDelete = currentUser?.role === 'Admin' || task.owner.includes(currentUser?.name || '');
-                const displayCategory = isVendorView ? (task.vendorCategory || '-') : (task.category || '-');
+                const displayCategory = task.vendor ? (task.vendorCategory || '-') : (task.category || '-');
+                const responsibleParty = task.vendor ? (task.vendor || '-') : (task.assignees || '-');
                 
                 return (
                   <tr key={task.id} className={`hover:bg-blue-50 transition-colors ${selectedIds.includes(task.id) ? 'bg-blue-50/50' : ''} ${isSyncing ? 'opacity-60' : ''}`}>
@@ -150,11 +151,17 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                     <td className={`${tdClass} font-medium whitespace-normal min-w-[200px]`}>{task.title || '-'}</td>
                     <td className={`${tdClass} whitespace-normal min-w-[150px]`}>{task.remarks || '-'}</td>
                     <td className={tdClass}>{displayCategory}</td>
-                    {!isVendorView && <td className={tdClass}>{task.assignees}</td>}
+                    {/* Display responsible party */}
+                    <td className={tdClass}>
+                        <div className="flex items-center gap-1">
+                            {task.vendor ? <Hammer size={12} className="text-orange-500"/> : <Users size={12} className="text-indigo-700"/>}
+                            {responsibleParty}
+                        </div>
+                    </td>
                     <td className={tdClass}>{task.owner}</td>
-                    {!isVendorView && <td className={tdClass}>{task.project.split(' (')[0]}</td>}
-                    {!isVendorView && <td className={tdClass}>{task.clientName || '-'}</td>}
-                    {isVendorView && <td className={tdClass}>{task.vendor || '-'}</td>}
+                    {/* Project and Client displayed explicitly */}
+                    <td className={`${tdClass} font-bold text-xs max-w-[120px] truncate`}>{task.project.split(' (')[0]}</td>
+                    <td className={`${tdClass} font-bold text-xs max-w-[120px] truncate`}>{task.clientName || '-'}</td>
                     <td className={tdClass}><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>{task.status}</span></td>
                     <td className={`${tdClass} whitespace-nowrap`}>
                         {task.status === 'Not Yet Started' ? '-' : (formatDate(task.lastUpdateDate || ''))}
@@ -187,6 +194,10 @@ export const TaskTable: React.FC<TaskTableProps> = ({
           const canDelete = currentUser?.role === 'Admin' || task.owner.includes(currentUser?.name || '');
           const isVendorTask = !!(task.vendor && task.vendor.trim() !== '');
           const priorityBorderColor = task.priority === 'High' ? 'border-red-500' : task.priority === 'Medium' ? 'border-amber-500' : 'border-blue-400';
+          const responsiblePartyIcon = isVendorTask ? <Hammer size={12} className="text-orange-500"/> : <Users size={12} className="text-indigo-700"/>;
+          const responsiblePartyText = isVendorTask ? (task.vendor || '-') : (task.assignees || '-');
+          const displayCategory = isVendorTask ? (task.vendorCategory || '-') : (task.category || '-');
+
 
           return (
             <div key={task.id} className={`bg-white rounded-xl shadow-lg p-5 relative border-2 ${priorityBorderColor} ${isSyncing ? 'opacity-70' : ''}`}>
@@ -213,14 +224,16 @@ export const TaskTable: React.FC<TaskTableProps> = ({
               <div className="space-y-3 mb-5">
                 {/* Collapsed view always shows Project and Priority */}
                 <div className="grid grid-cols-2 gap-x-3 gap-y-4">
-                    {!isVendorTask && (
-                      <div className="space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-blue-900/60">Project</span>
-                          <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase truncate max-w-full">
-                            <Layout size={12} className="text-orange-600 shrink-0" /> {task.project.split(' (')[0]}
-                          </div>
-                      </div>
-                    )}
+                    <div className="space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-blue-900/60">Project</span>
+                        <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase truncate max-w-full">
+                          <Layout size={12} className="text-orange-600 shrink-0" /> {task.project.split(' (')[0]}
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-blue-900/60">Client</span>
+                        <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase"><Building2 size={12} className="text-pink-600" /> {task.clientName || '-'}</div>
+                    </div>
                     <div className="space-y-1">
                         <span className="text-[10px] uppercase font-bold text-blue-900/60">Priority</span>
                         <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase">
@@ -236,28 +249,14 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                             <span className="text-[10px] uppercase font-bold text-blue-900/60">Owner</span>
                             <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase"><User size={12} className="text-blue-700" /> {task.owner}</div>
                         </div>
-                        {isVendorTask ? (
-                          <div className="space-y-1">
-                              <span className="text-[10px] uppercase font-bold text-blue-900/60">Vendor</span>
-                              <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase"><Building2 size={12} className="text-orange-600" /> {task.vendor || '-'}</div>
-                          </div>
-                        ) : (
-                          <div className="space-y-1">
-                              <span className="text-[10px] uppercase font-bold text-blue-900/60">Assignees</span>
-                              <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase"><Users size={12} className="text-indigo-700" /> {task.assignees || '-'}</div>
-                          </div>
-                        )}
-                        
-                        {!isVendorTask && (
-                            <div className="space-y-1">
-                                <span className="text-[10px] uppercase font-bold text-blue-900/60">Client</span>
-                                <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase"><Building2 size={12} className="text-pink-600" /> {task.clientName || '-'}</div>
-                            </div>
-                        )}
-
                         <div className="space-y-1">
-                            <span className="text-[10px] uppercase font-bold text-blue-900/60">{isVendorTask ? 'Vendor Category' : 'Category'}</span>
-                            <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase"><Tag size={12} className="text-green-600" /> {isVendorTask ? (task.vendorCategory || '-') : (task.category || '-')}</div>
+                            <span className="text-[10px] uppercase font-bold text-blue-900/60">{isVendorTask ? 'Vendor' : 'Assignees'}</span>
+                            <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase">{responsiblePartyIcon} {responsiblePartyText}</div>
+                        </div>
+                        
+                        <div className="space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-blue-900/60">Category</span>
+                            <div className="flex items-center gap-1.5 text-xs text-black font-bold uppercase"><Tag size={12} className="text-green-600" /> {displayCategory}</div>
                         </div>
                         <div className="space-y-1">
                             <span className="text-[10px] uppercase font-bold text-blue-900/60">Task Date</span>

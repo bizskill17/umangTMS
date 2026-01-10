@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { X, Plus } from 'lucide-react';
 import { Task, User, Category, Project, Vendor, VendorCategory } from '../types';
@@ -47,7 +48,7 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
     dueDate: string;
     priority: string;
     owner: string; 
-    project: string;
+    project: string; // Combined 'Project Name (Client Name)'
     vendor: string;
     vendorCategory: string[]; 
     notes: string;
@@ -81,8 +82,15 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
             });
             onClearLastAdded?.();
         }
+        // Ensure that if it's a vendor view, assignees are cleared
+        if (isVendorView) {
+            setFormData(prev => ({ ...prev, assignees: [] }));
+        } else {
+            // For non-vendor view, clear vendor fields
+            setFormData(prev => ({ ...prev, vendor: '', vendorCategory: [] }));
+        }
     }
-  }, [categories, projects, vendorCategories, isOpen, lastAddedCategory, lastAddedProject, lastAddedVendorCategory]);
+  }, [categories, projects, vendorCategories, isOpen, lastAddedCategory, lastAddedProject, lastAddedVendorCategory, isVendorView]);
 
   if (!isOpen) return null;
 
@@ -110,7 +118,8 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
     const basicValid = formData.title.trim() !== '' &&
         formData.priority !== '' &&
         formData.owner !== '' &&
-        formData.dueDate !== '';
+        formData.dueDate !== '' &&
+        formData.project !== ''; // Project is now required for all tasks
     
     if (isVendorView) {
         return basicValid && formData.vendor !== '' && formData.vendorCategory.length > 0;
@@ -118,7 +127,7 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
     return basicValid &&
         formData.assignees.length > 0 &&
-        formData.project !== '';
+        formData.category !== '';
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -131,23 +140,19 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
       dueDate: formData.dueDate,
       remarks: formData.notes,
       owner: formData.owner,
-      assignees: '',
-      project: '',
-      category: '', 
-      vendor: '',
-      vendorCategory: '' 
+      project: formData.project, // Project is always included now
     };
 
     if (isVendorView) {
         taskPayload.vendor = formData.vendor;
         taskPayload.vendorCategory = Array.isArray(formData.vendorCategory) ? formData.vendorCategory.join(', ') : formData.vendorCategory;
+        // For vendor tasks, assignees and category should be empty
         taskPayload.assignees = '';
-        taskPayload.project = '';
-        taskPayload.category = '';
+        taskPayload.category = ''; 
     } else {
         taskPayload.assignees = formData.assignees.join(', ');
-        taskPayload.project = formData.project;
         taskPayload.category = formData.category;
+        // For non-vendor tasks, vendor fields should be empty
         taskPayload.vendor = '';
         taskPayload.vendorCategory = '';
     }
@@ -220,9 +225,26 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
               </div>
             </div>
 
-            {isVendorView ? (
-                <>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Project Selector - always visible now */}
+            <div className="space-y-1">
+                <label className="text-sm font-medium text-black block mb-1">Project <span className="text-red-500">*</span></label>
+                <div className="flex gap-2">
+                    <div className="flex-1">
+                        <SearchableSelect
+                            options={projectOptions}
+                            value={formData.project}
+                            onChange={(val) => setFormData(prev => ({ ...prev, project: val }))}
+                            placeholder="Select Project..."
+                            required
+                        />
+                    </div>
+                    <button type="button" onClick={onAddProject} className="px-3 py-2 text-gray-500 hover:text-indigo-600 border border-gray-200 hover:bg-indigo-50 rounded-lg h-[42px]"><Plus size={18} /></button>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {isVendorView ? (
+                    <>
                         <div className="space-y-1">
                             <SearchableSelect
                                 label="Task Owner"
@@ -245,19 +267,6 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-medium text-black block mb-1">Due Date <span className="text-red-500">*</span></label>
-                            <input 
-                                name="dueDate"
-                                type="date" 
-                                required
-                                value={formData.dueDate}
-                                onChange={handleChange}
-                                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 outline-none text-black"
-                            />
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-1">
                             <label className="text-sm font-medium text-black block mb-1">Vendor Category <span className="text-red-500">*</span></label>
                             <div className="flex gap-2">
                                 <div className="flex-1">
@@ -273,11 +282,20 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                                 <button type="button" onClick={onAddVendorCategory} className="px-3 py-2 text-gray-500 hover:text-indigo-600 border border-gray-200 hover:bg-indigo-50 rounded-lg h-[42px]"><Plus size={18} /></button>
                             </div>
                         </div>
-                    </div>
-                </>
-            ) : (
-                <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-sm font-medium text-black block mb-1">Due Date <span className="text-red-500">*</span></label>
+                            <input 
+                                name="dueDate"
+                                type="date" 
+                                required
+                                value={formData.dueDate}
+                                onChange={handleChange}
+                                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 outline-none text-black"
+                            />
+                        </div>
+                    </>
+                ) : (
+                    <>
                         <div className="space-y-1">
                             <SearchableSelect
                                 label="Assignees"
@@ -300,9 +318,6 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                                 required
                             />
                         </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className="text-sm font-medium text-black block mb-1">Category <span className="text-red-500">*</span></label>
                             <div className="flex gap-2">
@@ -320,24 +335,6 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                         </div>
 
                         <div className="space-y-1">
-                            <label className="text-sm font-medium text-black block mb-1">Project <span className="text-red-500">*</span></label>
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <SearchableSelect
-                                        options={projectOptions}
-                                        value={formData.project}
-                                        onChange={(val) => setFormData(prev => ({ ...prev, project: val }))}
-                                        placeholder="Select Project..."
-                                        required
-                                    />
-                                </div>
-                                <button type="button" onClick={onAddProject} className="px-3 py-2 text-gray-500 hover:text-indigo-600 border border-gray-200 hover:bg-indigo-50 rounded-lg h-[42px]"><Plus size={18} /></button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-1">
                             <label className="text-sm font-medium text-black block mb-1">Due Date <span className="text-red-500">*</span></label>
                             <input 
                                 name="dueDate"
@@ -348,9 +345,9 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                                 className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 outline-none text-black"
                             />
                         </div>
-                    </div>
-                </>
-            )}
+                    </>
+                )}
+            </div>
 
             <div className="space-y-1">
               <label className="text-sm font-medium text-black block mb-1">Notes</label>

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Download, FileText, Search, CheckSquare, LayoutGrid, LayoutList, Filter, X, Clock, AlertTriangle, Users, Trash2, AlertCircle } from 'lucide-react';
 import { TaskTable } from './TaskTable';
@@ -6,7 +7,7 @@ import { EditTaskModal } from './EditTaskModal';
 import { BulkUpdateModal } from './BulkUpdateModal';
 import { Task, User, Project, Category, Vendor, VendorCategory } from '../types';
 import { SearchableSelect } from './SearchableSelect';
-import { parseToISO } from '../App';
+import { parseToISO, formatToIndianDate } from '../App';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -116,6 +117,8 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const [mobileViewMode, setMobileViewMode] = useState<'card' | 'table'>('card');
   const [showFilters, setShowFilters] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [sortKey, setSortKey] = useState<keyof Task>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   
   const isAdmin = currentUser?.role === 'Admin';
 
@@ -131,12 +134,19 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const matchesFilter = (task: Task, filterKey: string, value: string) => {
     if (!value || value.startsWith('All')) return true;
     switch(filterKey) {
-        case 'status': return task.status === value;
+        case 'status': 
+          if (value === 'Overdue') {
+              if (task.status === 'Completed' || !task.dueDate) return false;
+              const dueISO = parseToISO(task.dueDate);
+              const todayISO = new Date().toISOString().split('T')[0];
+              return dueISO && dueISO < todayISO;
+          }
+          return task.status === value;
         case 'priority': return task.priority === value;
         case 'project': return task.project === value;
         case 'client': return task.clientName === value;
-        case 'owner': return task.owner.includes(value);
-        case 'assignee': return task.assignees.includes(value);
+        case 'owner': return String(task.owner || '').includes(value);
+        case 'assignee': return String(task.assignees || '').includes(value);
         case 'vendor': return task.vendor === value;
         default: return true;
     }
@@ -147,7 +157,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
       if (filterType === 'pending') {
           const project = projects.find(p => p.name === task.project || `${p.name} (${p.client})` === task.project);
           if (project && project.status === 'Inactive') return false;
-          if (task.status === 'Completed') return false;
+          if (task.status === 'Completed' && filterStatus !== 'Overdue') return false;
       }
       if (filterType === 'completed' && task.status !== 'Completed') return false;
 
@@ -179,6 +189,51 @@ export const TasksView: React.FC<TasksViewProps> = ({
     });
   }, [tasks, projects, filterType, searchTerm, filterStatus, filterPriority, filterProject, filterClient, filterOwner, filterAssignee, filterVendor, dateFrom, dateTo, lastUpdateFrom, lastUpdateTo, isVendorView]);
 
+  const finalSortedTasks = useMemo(() => {
+    return [...filteredTasks].sort((a, b) => {
+        const aVal = a[sortKey] || '';
+        const bVal = b[sortKey] || '';
+        if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+    });
+  }, [filteredTasks, sortKey, sortDir]);
+
+  const paginatedTasks = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return finalSortedTasks.slice(startIndex, startIndex + itemsPerPage);
+  }, [finalSortedTasks, currentPage]);
+
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF('l', 'mm', 'a4');
+    doc.setFontSize(18);
+    doc.text(`${title} Report`, 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${new Date().toLocaleString('en-GB')}`, 14, 26);
+
+    const headers = [['S.No', 'Date', 'Task', 'Project', 'Client', 'Responsible', 'Status', 'Due Date']];
+    const data = finalSortedTasks.map((t, i) => [
+      i + 1,
+      formatToIndianDate(t.date),
+      t.title,
+      t.project.split(' (')[0],
+      t.clientName || '-',
+      isVendorView ? (t.vendor || '-') : (t.assignees || '-'),
+      t.status,
+      formatToIndianDate(t.dueDate)
+    ]);
+
+    autoTable(doc, {
+      head: headers,
+      body: data,
+      startY: 32,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [79, 70, 229] },
+    });
+
+    doc.save(`${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   const projectOptions = useMemo(() => {
       const opts = projects.map(p => {
           const uniqueValue = `${p.name.trim()} (${p.client.trim()})`;
@@ -209,24 +264,6 @@ export const TasksView: React.FC<TasksViewProps> = ({
   }, [vendors]);
 
   const totalPages = Math.ceil(filteredTasks.length / itemsPerPage);
-  
-  const [sortKey, setSortKey] = useState<keyof Task>('date');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-
-  const sortedTasks = useMemo(() => {
-    return [...filteredTasks].sort((a, b) => {
-        const aVal = a[sortKey] || '';
-        const bVal = b[sortKey] || '';
-        if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
-        if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
-        return 0;
-    });
-  }, [filteredTasks, sortKey, sortDir]);
-
-  const paginatedTasks = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return sortedTasks.slice(startIndex, startIndex + itemsPerPage);
-  }, [sortedTasks, currentPage]);
 
   const handleUpdateTaskClick = (task: Task) => {
     setSelectedTask(task);
@@ -317,9 +354,9 @@ export const TasksView: React.FC<TasksViewProps> = ({
           ) : (
             <button onClick={() => onAddTask(isVendorView)} className="flex items-center space-x-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium shadow-sm transition-colors"><Plus size={16} /><span>Add Task</span></button>
           )}
-          <button onClick={() => onExportExcel(filteredTasks)} className="flex items-center space-x-1 px-3 py-2 bg-white border border-indigo-600 text-indigo-600 rounded-md hover:bg-indigo-50 text-sm font-medium shadow-sm transition-colors"><FileText size={16} className="text-green-600" /><span>Excel</span></button>
+          <button onClick={() => onExportExcel(finalSortedTasks)} className="flex items-center space-x-1 px-3 py-2 bg-white border border-indigo-600 text-indigo-600 rounded-md hover:bg-indigo-50 text-sm font-medium shadow-sm transition-colors"><FileText size={16} className="text-green-600" /><span>Excel</span></button>
+          <button onClick={handleDownloadPDF} className="flex items-center space-x-1 px-3 py-2 bg-white border border-indigo-600 text-indigo-600 rounded-md hover:bg-indigo-50 text-sm font-medium shadow-sm transition-colors"><Download size={16} className="text-red-500" /><span>PDF</span></button>
           <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center space-x-1 px-3 py-2 border rounded-md text-sm font-medium shadow-sm transition-all duration-200 ${showFilters ? 'bg-indigo-600 border-indigo-700 text-white ring-2 ring-indigo-200' : 'bg-indigo-50 border-indigo-300 text-indigo-600 hover:bg-indigo-100'}`} title="Toggle Filters"><Filter size={16} /></button>
-          {filterType === 'pending' && <button onClick={() => {}} className="flex items-center space-x-1 px-3 py-2 bg-white border border-indigo-600 text-indigo-600 rounded-md hover:bg-indigo-50 text-sm font-medium shadow-sm transition-colors"><Download size={16} className="text-red-500" /><span>PDF</span></button>}
           
           <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200 shadow-sm">
               <button
@@ -367,7 +404,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
              <div className="col-span-1 space-y-1">
                 <label className="text-xs font-semibold text-indigo-600 uppercase tracking-wider block">Status</label>
                 <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={getFilterClass(filterStatus !== 'All Status')}>
-                    <option>All Status</option><option>Not Yet Started</option><option>In Progress</option><option>Completed</option>
+                    <option>All Status</option><option>Not Yet Started</option><option>In Progress</option><option>Completed</option><option>Overdue</option>
                 </select>
              </div>
              <div className="col-span-1 space-y-1">

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { RotateCcw, Plus, Search, Filter, X, FileText, Download, Info, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Edit2, LayoutGrid, LayoutList, AlertCircle, Calendar } from 'lucide-react';
 import { RecurringTask, RecurringTaskAction } from '../types';
@@ -187,7 +188,6 @@ export const RecurringTasksView: React.FC<RecurringTasksViewProps> = ({
         if (effectiveStatus === 'Complete') return false; 
       }
 
-      // Point 1: Universal search logic
       if (searchTerm) {
         const lowerTerm = searchTerm.toLowerCase();
         const matchesSearch = Object.values(task).some(val => 

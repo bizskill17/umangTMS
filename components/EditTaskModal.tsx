@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Info, AlertTriangle } from 'lucide-react';
 import { Task, User, Category, Project, Vendor, VendorCategory } from '../types';
@@ -46,7 +47,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
     title: string;
     assignees: string[]; 
     owner: string;
-    project: string;
+    project: string; // Combined 'Project Name (Client Name)'
     category: string;
     dueDate: string;
     vendor: string;
@@ -77,7 +78,8 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
             }
         }
 
-        // Fix: Ensure project value is correctly mapped to combined format for select matching
+        // Project value should already be in 'Name (Client)' format from App.tsx normalization
+        // If not, construct it for consistency in the selector
         let currentProjectValue = task.project || '';
         if (currentProjectValue && !currentProjectValue.includes('(') && task.clientName) {
             currentProjectValue = `${currentProjectValue.trim()} (${task.clientName.trim()})`;
@@ -87,7 +89,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
             title: task.title,
             assignees: task.assignees ? task.assignees.split(',').map(s => s.trim()) : [],
             owner: task.owner,
-            project: currentProjectValue,
+            project: currentProjectValue, // Use the combined format for project selector
             category: task.category || '',
             dueDate: formattedDate,
             vendor: task.vendor || '',
@@ -140,9 +142,15 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
   };
 
   const isFormValid = () => {
-    const basicValid = formData.title.trim() !== '' && formData.owner !== '';
+    const basicValid = formData.title.trim() !== '' && 
+                       formData.owner !== '' && 
+                       formData.project !== ''; // Project is now required for all tasks
+
     if (isVendorMode) return basicValid && formData.vendor !== '';
-    return basicValid && formData.assignees.length > 0 && formData.project !== '';
+    
+    return basicValid && 
+           formData.assignees.length > 0 && 
+           formData.category !== '';
   };
 
   const handlePreSubmit = (e: React.FormEvent) => {
@@ -158,19 +166,20 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
       owner: formData.owner,
       remarks: formData.notes,
       dueDate: formData.dueDate,
-      category: formData.category,
-      priority: formData.priority as any
+      priority: formData.priority as any,
+      project: formData.project, // Project is always saved as the combined string
     };
 
     if (isVendorMode) {
         updatedTask.vendor = formData.vendor;
         updatedTask.vendorCategory = Array.isArray(formData.vendorCategory) ? formData.vendorCategory.join(', ') : formData.vendorCategory;
+        // For vendor tasks, assignees and category should be empty
         updatedTask.assignees = '';
-        updatedTask.project = '';
         updatedTask.category = ''; 
     } else {
         updatedTask.assignees = formData.assignees.join(', ');
-        updatedTask.project = formData.project;
+        updatedTask.category = formData.category;
+        // For non-vendor tasks, vendor fields should be empty
         updatedTask.vendor = '';
         updatedTask.vendorCategory = '';
     }
@@ -225,17 +234,26 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
                 </div>
               </div>
 
-              {isVendorMode ? (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Project Selector - always visible now */}
+              <div className="space-y-1">
+                  <label className="text-sm font-medium text-black block mb-1">Project <span className="text-red-500">*</span></label>
+                  <div className="flex gap-2">
+                      <div className="flex-1">
+                          <SearchableSelect options={projectOptions} value={formData.project} onChange={(val) => setFormData(prev => ({ ...prev, project: val }))} placeholder="Select Project..." required />
+                      </div>
+                      <button type="button" onClick={onAddProject} className="px-3 py-2 text-gray-500 hover:text-indigo-600 border border-gray-200 hover:bg-indigo-50 rounded-lg h-[42px]"><Plus size={18} /></button>
+                  </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {isVendorMode ? (
+                      <>
                         <div className="space-y-1">
                             <SearchableSelect label="Task Owner" options={userOptions} value={formData.owner} onChange={(val) => setFormData(prev => ({ ...prev, owner: val }))} multiple={false} placeholder="Select Owner..." required />
                         </div>
                         <div className="space-y-1">
                             <SearchableSelect label="Vendor" options={vendorOptions} value={formData.vendor} onChange={(val) => setFormData(prev => ({ ...prev, vendor: val }))} placeholder="Select Vendor..." required />
                         </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className="text-sm font-medium text-black block mb-1">Vendor Category</label>
                             <div className="flex gap-2">
@@ -251,41 +269,27 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
                                 <button type="button" onClick={onAddVendorCategory} className="px-3 py-2 text-gray-500 hover:text-indigo-600 border border-gray-200 hover:bg-indigo-50 rounded-lg h-[42px]"><Plus size={18} /></button>
                             </div>
                         </div>
-                    </div>
-                  </>
-              ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                          <SearchableSelect label="Assignees" options={userOptions} value={formData.assignees} onChange={(val) => setFormData(prev => ({ ...prev, assignees: val }))} multiple={true} placeholder="Select Assignees..." required />
-                      </div>
-                      <div className="space-y-1">
-                          <SearchableSelect label="Task Owner" options={userOptions} value={formData.owner} onChange={(val) => setFormData(prev => ({ ...prev, owner: val }))} multiple={false} placeholder="Select Owner..." required />
-                      </div>
-                  </div>
-              )}
-
-              {!isVendorMode && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                        <label className="text-sm font-medium text-black block mb-1">Category <span className="text-red-500">*</span></label>
-                        <div className="flex gap-2">
-                            <div className="flex-1">
-                                <SearchableSelect options={categoryOptions} value={formData.category} onChange={(val) => setFormData(prev => ({ ...prev, category: val }))} placeholder="Select Category..." required />
-                            </div>
-                            <button type="button" onClick={onAddCategory} className="px-3 py-2 text-gray-500 hover:text-indigo-600 border border-gray-200 hover:bg-indigo-50 rounded-lg h-[42px]"><Plus size={18} /></button>
+                      </>
+                  ) : (
+                      <>
+                        <div className="space-y-1">
+                            <SearchableSelect label="Assignees" options={userOptions} value={formData.assignees} onChange={(val) => setFormData(prev => ({ ...prev, assignees: val }))} multiple={true} placeholder="Select Assignees..." required />
                         </div>
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-sm font-medium text-black block mb-1">Project <span className="text-red-500">*</span></label>
-                        <div className="flex gap-2">
-                            <div className="flex-1">
-                                <SearchableSelect options={projectOptions} value={formData.project} onChange={(val) => setFormData(prev => ({ ...prev, project: val }))} placeholder="Select Project..." required />
-                            </div>
-                            <button type="button" onClick={onAddProject} className="px-3 py-2 text-gray-500 hover:text-indigo-600 border border-gray-200 hover:bg-indigo-50 rounded-lg h-[42px]"><Plus size={18} /></button>
+                        <div className="space-y-1">
+                            <SearchableSelect label="Task Owner" options={userOptions} value={formData.owner} onChange={(val) => setFormData(prev => ({ ...prev, owner: val }))} multiple={false} placeholder="Select Owner..." required />
                         </div>
-                    </div>
-                </div>
-              )}
+                        <div className="space-y-1">
+                            <label className="text-sm font-medium text-black block mb-1">Category <span className="text-red-500">*</span></label>
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <SearchableSelect options={categoryOptions} value={formData.category} onChange={(val) => setFormData(prev => ({ ...prev, category: val }))} placeholder="Select Category..." required />
+                                </div>
+                                <button type="button" onClick={onAddCategory} className="px-3 py-2 text-gray-500 hover:text-indigo-600 border border-gray-200 hover:bg-indigo-50 rounded-lg h-[42px]"><Plus size={18} /></button>
+                            </div>
+                        </div>
+                      </>
+                  )}
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">

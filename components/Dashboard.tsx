@@ -43,7 +43,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const regularTasks = tasks.filter(t => !t.vendor || t.vendor.trim() === '');
     const totalTasks = regularTasks.length;
     const pendingTasks = regularTasks.filter(t => t.status !== 'Completed').length;
-    const overdueTasks = regularTasks.filter(t => t.status !== 'Completed' && new Date(t.dueDate) < new Date()).length;
+    
+    // Fix: Proper date comparison for Overdue count
+    const todayISO = new Date().toISOString().split('T')[0];
+    const overdueTasks = regularTasks.filter(t => {
+      if (t.status === 'Completed' || !t.dueDate) return false;
+      const dueISO = parseToISO(t.dueDate);
+      return dueISO && dueISO < todayISO;
+    }).length;
+
     const completedTasks = regularTasks.filter(t => t.status === 'Completed').length;
     const totalUsers = users.length;
     return { totalTasks, pendingTasks, overdueTasks, completedTasks, totalUsers };
@@ -247,6 +255,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               icon={<AlertTriangle size={20}/>} 
               iconBgColor="bg-red-100" 
               iconColor="text-red-600" 
+              onClick={() => onFilterChange('status', 'Overdue')}
             />
             <StatCard 
               title="Completed" 
