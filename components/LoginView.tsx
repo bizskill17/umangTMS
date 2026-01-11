@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Mail, Lock, Loader2, AlertCircle, Building2, ChevronRight, Info } from 'lucide-react';
+import { Mail, Lock, Loader2, AlertCircle, Building2, ChevronRight, Info, Eye, EyeOff } from 'lucide-react';
 
 interface LoginViewProps {
   onLogin: (workspaceId: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -15,6 +15,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, isAuthenticating,
   const [error, setError] = useState<string | null>(null);
   const [showWorkspaceInput, setShowWorkspaceInput] = useState(!savedWorkspaceId);
   const [showInfo, setShowInfo] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,8 +44,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, isAuthenticating,
               alt="TaskPro Logo" 
             />
           </div>
-          <h1 className="text-3xl font-extrabold text-[#1a1a1a] tracking-tight">Welcome Back</h1>
-          <p className="text-gray-400 mt-1 text-xs uppercase tracking-[0.2em] font-bold">Secure Access</p>
+          <h1 className="text-3xl font-extrabold text-[#1a1a1a] tracking-tight">TaskPro</h1> 
+          <p className="text-gray-400 mt-1 text-xs uppercase tracking-[0.2em] font-bold">by BizSkill</p> 
         </div>
 
         {/* Login Card */}
@@ -125,12 +126,19 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, isAuthenticating,
                     <Lock size={20} />
                   </div>
                   <input 
-                    type="password"
-                    className="block w-full pl-12 pr-4 py-4 bg-[#fcfdfe] border border-gray-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none text-gray-900 transition-all font-medium"
+                    type={showPassword ? "text" : "password"} 
+                    className="block w-full pl-12 pr-12 py-4 bg-[#fcfdfe] border border-gray-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none text-gray-900 transition-all font-medium"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
                 </div>
               </div>
 
@@ -159,13 +167,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, isAuthenticating,
               </button>
             </form>
           </div>
-          
-          <div className="bg-[#fcfdfe] p-8 border-t border-gray-100 text-center">
-            <p className="text-[13px] text-gray-400 font-medium">
-              Don't have an account? <br/>
-              <button type="button" className="text-[#3b5bdb] font-bold mt-1 hover:underline">Contact your Organization Admin</button>
-            </p>
-          </div>
+          {/* Removed the 'Don't have an account?' section as per user request */}
         </div>
       </div>
     </div>

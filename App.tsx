@@ -33,6 +33,7 @@ import { RecurringTaskHistoryModal } from './components/RecurringTaskHistoryModa
 import { AddRecurringTaskModal } from './components/AddRecurringTaskModal';
 import { UpdateRecurringTaskModal } from './components/UpdateRecurringTaskModal';
 import { EditRecurringTaskModal } from './components/EditRecurringTaskModal';
+import { TelegramSetupView } from './components/TelegramSetupView'; // Import new component
 import { 
   LayoutDashboard, 
   CheckSquare, 
@@ -52,7 +53,8 @@ import {
   Settings,
   AlertCircle,
   X,
-  Hammer
+  Hammer,
+  Send // Import Send icon
 } from 'lucide-react';
 import { NavItem, Task, User, Designation, Category, Project, Client, ActionLogEntry, Vendor, VendorCategory, RecurringTask, RecurringTaskAction, AppSettings } from './types';
 
@@ -143,7 +145,7 @@ export default function App() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [layoutMode, setLayoutMode] = useState<'side' | 'top'>(() => (localStorage.getItem('taskpro_layout') as any) || 'side');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [syncingIds, setSyncingIds] = useState<Set<number>>(new Set());
+  const [syncingIds, setSyncingIds] = new useState<Set<number>>(new Set());
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -599,10 +601,11 @@ export default function App() {
     { id: 'clients', label: 'Clients', icon: <Building2 size={20} />, section: 'Master' },
     { id: 'projects', label: 'Projects', icon: <Folder size={20} />, section: 'Master' },
     { id: 'categories', label: 'Categories', icon: <Tags size={20} />, section: 'Master' },
-    { id: 'settings', label: 'Settings', icon: <Settings size={20} />, section: 'Master' }
+    { id: 'settings', label: 'Settings', icon: <Settings size={20} />, section: 'Master' },
+    { id: 'telegram-setup', label: 'Telegram Setup', icon: <Send size={20} />, section: 'Master' } // New item
   ].filter(item => {
     if (isAdmin) return true;
-    const hiddenItemsForNonAdmin = ['users', 'clients', 'projects', 'categories', 'settings', 'vendors'];
+    const hiddenItemsForNonAdmin = ['users', 'clients', 'projects', 'categories', 'settings', 'vendors', 'telegram-setup']; // Hide telegram-setup for non-admin
     return !hiddenItemsForNonAdmin.includes(item.id);
   });
 
@@ -691,6 +694,7 @@ export default function App() {
       case 'projects': if (!isAdmin) return null; return <ProjectsView projects={projects} clients={clients} onAddProject={handleInstantAddProject} onDeleteProject={(id) => { setProjects(p => p.filter(x => x.id !== id)); apiPost('deleteRecord', { id }, 'Projects'); }} onEditProject={(p) => { setProjects(prev => prev.map(x => x.id === p.id ? p : x)); apiPost('updateMaster', p, 'Projects'); }} onAddClient={() => setIsClientModalOpen(true)} onNavigateToProjectTasks={handleDashboardFilterChange.bind(null, 'project')} />;
       case 'categories': if (!isAdmin) return null; return <CategoriesView categories={categories} onAddCategory={() => setIsCategoryModalOpen(true)} onDeleteCategory={(id) => { setCategories(p => p.filter(c => c.id !== id)); apiPost('deleteRecord', { id }, 'Categories'); }} onEditCategory={(c) => { setCategories(p => p.map(x => x.id === c.id ? c : x)); apiPost('updateMaster', c, 'Categories'); }} />;
       case 'settings': if (!isAdmin) return null; return <SettingsView settings={settings} onUpdate={(s) => { setSettings(s); apiPost('updateMaster', s, 'AppSettings'); }} />;
+      case 'telegram-setup': if (!isAdmin) return null; return <TelegramSetupView />; // New Telegram Setup View
       default: return null;
     }
   };
