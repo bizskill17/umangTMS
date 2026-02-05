@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { RotateCcw, Plus, Search, Filter, X, FileText, Download, Info, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Edit2, LayoutGrid, LayoutList, AlertCircle, Calendar } from 'lucide-react';
 import { RecurringTask, RecurringTaskAction } from '../types';
@@ -342,7 +341,7 @@ export const RecurringTasksView: React.FC<RecurringTasksViewProps> = ({
                     />
                   </th>
                 )}
-                <th className="px-4 py-3 text-[10px] font-bold text-white uppercase tracking-wider border-r border-indigo-500 w-12 text-center whitespace-normal">S.No.</th>
+                <th className="px-4 py-3 text-[10px] font-bold text-white uppercase tracking-wider border-r border-indigo-500 w-16 text-center whitespace-nowrap">S.No.</th>
                 <th className={thClass} onClick={() => requestSort('title')}><div className="flex items-center">Task {getSortIcon('title')}</div></th>
                 <th className={thClass} onClick={() => requestSort('category')}><div className="flex items-center">Category {getSortIcon('category')}</div></th>
                 <th className={thClass} onClick={() => requestSort('assignee')}><div className="flex items-center">Assignee {getSortIcon('assignee')}</div></th>
@@ -373,7 +372,7 @@ export const RecurringTasksView: React.FC<RecurringTasksViewProps> = ({
                         />
                       </td>
                     )}
-                    <td className={`${tdClass} text-center font-bold text-indigo-600`}>{startEntry + idx}</td>
+                    <td className={`${tdClass} text-center font-bold text-indigo-600 !whitespace-nowrap`}>{startEntry + idx}</td>
                     <td className={`${tdClass} font-medium`}>{task.title}</td>
                     <td className={tdClass}>{task.category}</td>
                     <td className={tdClass}>{task.assignee}</td>

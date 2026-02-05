@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, History, Filter, X, FileText, Download, ArrowUpDown, ArrowUp, ArrowDown, Trash2, LayoutGrid, LayoutList, Calendar, Tag, User } from 'lucide-react';
 import { RecurringTaskAction } from '../types';
@@ -155,7 +154,7 @@ export const RecurringTaskActionsView: React.FC<RecurringTaskActionsViewProps> =
         <div className="flex flex-wrap gap-2 items-center">
             <div className="flex bg-blue-50 p-1 rounded-lg md:hidden border border-blue-200">
                 <button onClick={() => setViewMode('card')} className={`p-1.5 rounded-md transition-all ${viewMode === 'card' ? 'bg-white shadow text-blue-600' : 'text-blue-500'}`}><LayoutGrid size={18} /></button>
-                <button onClick={() => setViewMode('table')} className={`p-1.5 rounded-md transition-all ${viewMode === 'table' ? 'bg-white shadow text-blue-600' : 'text-blue-500'}`}><LayoutList size={18} /></button>
+                <button onClick={() => setViewMode('table')} className={`p-1.5 rounded-md transition-all ${viewMode === 'table' ? 'bg-white shadow text-indigo-600' : 'text-blue-500'}`}><LayoutList size={18} /></button>
             </div>
             <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center space-x-1 px-3 py-2 border-2 rounded-md text-xs font-black shadow-sm transition-all duration-200 uppercase tracking-widest ${showFilters ? 'bg-blue-600 border-blue-700 text-white' : 'bg-blue-50 border-blue-300 text-blue-600'}`}><Filter size={16} /><span>Filters</span></button>
         </div>
@@ -232,7 +231,7 @@ export const RecurringTaskActionsView: React.FC<RecurringTaskActionsViewProps> =
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-blue-600">
-                <th className="px-4 py-3 text-[10px] font-black text-white uppercase tracking-widest border-r border-blue-500 w-12 text-center whitespace-normal">S.No.</th>
+                <th className="px-4 py-3 text-[10px] font-black text-white uppercase tracking-widest border-r border-blue-500 w-16 text-center whitespace-nowrap">S.No.</th>
                 <th className={thClass} onClick={() => requestSort('taskTitle')}><div className="flex items-center">Task {getSortIcon('taskTitle')}</div></th>
                 <th className={thClass} onClick={() => requestSort('category')}><div className="flex items-center">Category {getSortIcon('category')}</div></th>
                 <th className={thClass} onClick={() => requestSort('assignee')}><div className="flex items-center">Assignee {getSortIcon('assignee')}</div></th>
@@ -245,7 +244,7 @@ export const RecurringTaskActionsView: React.FC<RecurringTaskActionsViewProps> =
             <tbody className="divide-y divide-blue-50">
               {paginatedActions.map((action, idx) => (
                 <tr key={action.id} className="hover:bg-blue-50 transition-colors">
-                  <td className={`${tdClass} text-center font-bold text-blue-600`}>{startEntry + idx}</td>
+                  <td className={`${tdClass} text-center font-bold text-blue-600 !whitespace-nowrap`}>{startEntry + idx}</td>
                   <td className={`${tdClass} font-bold`}>{action.taskTitle}</td>
                   <td className={tdClass}>{action.category}</td>
                   <td className={tdClass}>{action.assignee}</td>

@@ -176,6 +176,7 @@ function handleAddTask(data) {
     const ownerRole = getUserRole(data.owner);
     const assignees = (data.assignees || '').toString().trim();
     const vendor = (data.vendor || '').toString().trim();
+    const taskNotes = data.notes || data.remarks || data.Remarks || '-';
     
     // Check for self-assignment + Admin role
     const isSelfAssignment = isVendor 
@@ -195,6 +196,7 @@ function handleAddTask(data) {
       if (isVendor) {
         msg = `*New Vendor Task*\n\n` +
               `*Task:* ${escapeMarkdown(taskTitle)}\n` +
+              `*Notes:* ${escapeMarkdown(taskNotes)}\n` +
               `*Owner:* ${escapeMarkdown(owner)}\n` +
               `*Vendor:* ${escapeMarkdown(data.vendor)}\n` +
               `*Project:* ${escapeMarkdown(project)}\n` +
@@ -204,6 +206,7 @@ function handleAddTask(data) {
       } else {
         msg = `*New Task Assigned*\n\n` +
               `*Task:* ${escapeMarkdown(taskTitle)}\n` +
+              `*Notes:* ${escapeMarkdown(taskNotes)}\n` +
               `*Owner:* ${escapeMarkdown(owner)}\n` +
               `*Client:* ${escapeMarkdown(client)}\n` +
               `*Project:* ${escapeMarkdown(project)}\n` +
@@ -327,6 +330,7 @@ function handleUpdateTask(data) {
       const ownerRole = getUserRole(data.owner);
       const assignees = (data.assignees || '').toString().trim();
       const vendor = (data.vendor || '').toString().trim();
+      const taskNotes = data.remarks || data.Notes || data.notes || '-';
       
       const isSelfAssignment = isVendor 
         ? (vendor === owner.trim())
@@ -343,6 +347,7 @@ function handleUpdateTask(data) {
         if (isVendor) {
           updateMsg = `📝 *Vendor Task Updated*\n\n` +
                       `*Task:* ${escapeMarkdown(data.title || data.task)}\n` +
+                      `*Notes:* ${escapeMarkdown(taskNotes)}\n` +
                       `*Owner:* ${escapeMarkdown(owner)}\n` +
                       `*Vendor:* ${escapeMarkdown(data.vendor || '-')}\n` +
                       `*Project:* ${escapeMarkdown(project)}\n` +
@@ -354,6 +359,7 @@ function handleUpdateTask(data) {
         } else {
           updateMsg = `📝 *Task Updated*\n\n` +
                       `*Task:* ${escapeMarkdown(data.title || data.task)}\n` +
+                      `*Notes:* ${escapeMarkdown(taskNotes)}\n` +
                       `*Owner:* ${escapeMarkdown(owner)}\n` +
                       `*Assignees:* ${escapeMarkdown(data.assignees || '-')}\n` +
                       `*Project:* ${escapeMarkdown(project)}\n` +

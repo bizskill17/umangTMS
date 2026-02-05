@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, FileText, LayoutGrid, LayoutList, Calendar, User, Clock, AlertCircle, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, Trash2, Briefcase, Building2 } from 'lucide-react';
 import { ActionLogEntry, Project } from '../types';
@@ -30,11 +29,16 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [updateDateFrom, setUpdateDateFrom] = useState('');
   const [updateDateTo, setUpdateDateTo] = useState('');
-  const [filterStatus, setFilterStatus] = useState('All Status');
-  const [filterOwner, setFilterOwner] = useState('All Owners');
-  const [filterAssignee, setFilterAssignee] = useState('All Assignees');
-  const [filterProject, setFilterProject] = useState('All Projects');
-  const [filterVendor, setFilterVendor] = useState('All Vendors');
+  const [taskDateFrom, setTaskDateFrom] = useState('');
+  const [taskDateTo, setTaskDateTo] = useState('');
+  
+  const [filterStatus, setFilterStatus] = useState<string[]>([]);
+  const [filterOwner, setFilterOwner] = useState<string[]>([]);
+  const [filterAssignee, setFilterAssignee] = useState<string[]>([]);
+  const [filterProject, setFilterProject] = useState<string[]>([]);
+  const [filterVendor, setFilterVendor] = useState<string[]>([]);
+  const [filterClient, setFilterClient] = useState<string[]>([]);
+  
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [showFilters, setShowFilters] = useState(false);
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
@@ -46,13 +50,13 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
   useEffect(() => {
     if (dashboardFilter) {
       if (dashboardFilter.type === 'owner') {
-          setFilterOwner(dashboardFilter.value);
+          setFilterOwner([dashboardFilter.value]);
           setSearchTerm(''); 
       } else if (dashboardFilter.type === 'vendor') {
-          setFilterVendor(dashboardFilter.value);
+          setFilterVendor([dashboardFilter.value]);
           setSearchTerm('');
       } else if (dashboardFilter.type === 'assignee') {
-          setFilterAssignee(dashboardFilter.value);
+          setFilterAssignee([dashboardFilter.value]);
           setSearchTerm('');
       }
 
@@ -65,7 +69,7 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, updateDateFrom, updateDateTo, filterStatus, filterOwner, filterAssignee, filterProject, filterVendor]);
+  }, [searchTerm, updateDateFrom, updateDateTo, taskDateFrom, taskDateTo, filterStatus, filterOwner, filterAssignee, filterProject, filterVendor, filterClient]);
 
   const requestSort = (key: keyof ActionLogEntry) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -76,12 +80,13 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
   };
 
   const getSortIcon = (key: keyof ActionLogEntry) => {
-    if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown size={14} className="ml-1 opacity-50" />;
+    if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown size={14} className="ml-1 opacity-50 text-white" />;
     return sortConfig.direction === 'asc' ? <ArrowUp size={14} className="ml-1 text-white" /> : <ArrowDown size={14} className="ml-1 text-white" />;
   };
 
   const uniqueOwners = useMemo(() => Array.from(new Set(logs.flatMap(l => String(l.owner || '').split(',').map(s => s.trim()).filter(Boolean)))), [logs]);
   const uniqueAssignees = useMemo(() => Array.from(new Set(logs.flatMap(l => String(l.assignees || '').split(',').map(s => s.trim()).filter(Boolean)))), [logs]);
+  const uniqueClients = useMemo(() => Array.from(new Set(logs.map(l => String(l.clientName || '').trim()).filter(Boolean))), [logs]);
   
   const uniqueProjects = useMemo(() => Array.from(new Set(logs.map(l => {
     const projName = String(l.project || '').trim();
@@ -92,11 +97,12 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
   const uniqueStatuses = useMemo(() => Array.from(new Set(logs.map(l => l.status))), [logs]);
   const uniqueVendors = useMemo(() => Array.from(new Set(logs.map(l => String(l.vendor || '')).filter(v => v !== ''))), [logs]);
 
-  const ownerOptions = [{ value: 'All Owners', label: 'All Owners' }, ...uniqueOwners.map(o => ({ value: o, label: o }))];
-  const assigneeOptions = [{ value: 'All Assignees', label: 'All Assignees' }, ...uniqueAssignees.map(a => ({ value: a, label: a }))];
-  const projectOptions = [{ value: 'All Projects', label: 'All Projects' }, ...uniqueProjects.map(p => ({ value: p, label: p }))];
-  const statusOptions = [{ value: 'All Status', label: 'All Status' }, ...uniqueStatuses.map(s => ({ value: s, label: s }))];
-  const vendorOptions = [{ value: 'All Vendors', label: 'All Vendors' }, ...uniqueVendors.map(v => ({ value: v, label: v }))];
+  const ownerOptions = uniqueOwners.map(o => ({ value: o, label: o }));
+  const assigneeOptions = uniqueAssignees.map(a => ({ value: a, label: a }));
+  const projectOptions = uniqueProjects.map(p => ({ value: p, label: p }));
+  const statusOptions = uniqueStatuses.map(s => ({ value: s, label: s }));
+  const vendorOptions = uniqueVendors.map(v => ({ value: v, label: v }));
+  const clientOptions = uniqueClients.map(c => ({ value: c, label: c }));
 
   const filteredLogs = useMemo(() => {
     return logs.filter(log => {
@@ -112,19 +118,23 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
       if (updateDateFrom && logISO < updateDateFrom) return false;
       if (updateDateTo && logISO > updateDateTo) return false;
 
-      if (filterStatus !== 'All Status' && log.status !== filterStatus) return false;
-      if (filterOwner !== 'All Owners' && !String(log.owner || '').includes(filterOwner)) return false;
-      
-      if (filterProject !== 'All Projects' && log.project !== filterProject) return false;
+      const taskISO = parseToISO(log.taskDate);
+      if (taskDateFrom && taskISO < taskDateFrom) return false;
+      if (taskDateTo && taskISO > taskDateTo) return false;
+
+      if (filterStatus.length > 0 && !filterStatus.includes(log.status)) return false;
+      if (filterOwner.length > 0 && !filterOwner.some(v => String(log.owner || '').includes(v))) return false;
+      if (filterProject.length > 0 && !filterProject.includes(log.project)) return false;
+      if (filterClient.length > 0 && !filterClient.includes(log.clientName || '')) return false;
       
       if (isVendorView) {
-          if (filterVendor !== 'All Vendors' && log.vendor !== filterVendor) return false;
+          if (filterVendor.length > 0 && !filterVendor.includes(log.vendor || '')) return false;
       } else {
-          if (filterAssignee !== 'All Assignees' && !String(log.assignees || '').includes(filterAssignee)) return false;
+          if (filterAssignee.length > 0 && !filterAssignee.some(v => String(log.assignees || '').includes(v))) return false;
       }
       return true;
     });
-  }, [logs, searchTerm, updateDateFrom, updateDateTo, filterStatus, filterOwner, filterAssignee, filterProject, filterVendor, isVendorView]);
+  }, [logs, searchTerm, updateDateFrom, updateDateTo, taskDateFrom, taskDateTo, filterStatus, filterOwner, filterAssignee, filterProject, filterVendor, filterClient, isVendorView]);
 
   const sortedLogs = useMemo(() => {
     let sortableItems = [...filteredLogs];
@@ -196,20 +206,23 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
   const handleClearFilters = () => {
       setUpdateDateFrom('');
       setUpdateDateTo('');
-      setFilterStatus('All Status');
-      setFilterOwner('All Owners');
-      setFilterAssignee('All Assignees');
-      setFilterProject('All Projects');
-      setFilterVendor('All Vendors');
+      setTaskDateFrom('');
+      setTaskDateTo('');
+      setFilterStatus([]);
+      setFilterOwner([]);
+      setFilterAssignee([]);
+      setFilterProject([]);
+      setFilterVendor([]);
+      setFilterClient([]);
       setSearchTerm('');
       if (onClearDashboardFilter) onClearDashboardFilter();
   };
 
   const getFilterClass = (isActive: boolean) => 
-    `w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 transition-colors ${isActive ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold' : 'bg-white border-blue-300 text-black'}`;
+    `w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 transition-colors ${isActive ? 'bg-indigo-50 border-indigo-500 text-indigo-700 font-black' : 'bg-white border-indigo-300 text-black'}`;
 
-  const thClass = "px-6 py-4 text-xs font-bold text-white uppercase tracking-widest border-r border-blue-500 last:border-r-0 cursor-pointer hover:bg-blue-700 transition-colors select-none whitespace-normal";
-  const tdClass = "px-6 py-4 text-sm text-gray-900 border-r border-blue-100 last:border-r-0 whitespace-normal break-words";
+  const thClass = "px-6 py-4 text-xs font-black text-white uppercase tracking-widest border-r border-blue-500 last:border-r-0 cursor-pointer !bg-blue-700 hover:bg-blue-800 transition-colors select-none whitespace-normal sticky top-0 z-10";
+  const tdClass = "px-6 py-4 text-sm text-gray-900 border-r border-blue-100 last:border-r-0 whitespace-normal break-words align-top";
 
   const startEntry = sortedLogs.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
   const endEntry = Math.min(currentPage * itemsPerPage, sortedLogs.length);
@@ -242,7 +255,7 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
           <input 
             type="text" 
             placeholder="Search log history..." 
-            className={`w-full pl-10 pr-4 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm transition-colors font-bold ${searchTerm ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-blue-200 text-blue-900'}`} 
+            className={`w-full pl-10 pr-4 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-100 text-sm transition-colors font-black ${searchTerm ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-blue-200 text-blue-900'}`} 
             value={searchTerm} 
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -256,22 +269,35 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
                 <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Update To</label>
                 <input type="date" className={getFilterClass(updateDateTo !== '')} value={updateDateTo} onChange={(e) => setUpdateDateTo(e.target.value)}/>
               </div>
-              <div className="space-y-1 text-blue-600 font-bold uppercase tracking-wider">
-                <SearchableSelect label={<span className="text-[10px] font-black uppercase tracking-widest">Status</span>} options={statusOptions} value={filterStatus} onChange={setFilterStatus} className="text-sm" />
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Task Date From</label>
+                <input type="date" className={getFilterClass(taskDateFrom !== '')} value={taskDateFrom} onChange={(e) => setTaskDateFrom(e.target.value)}/>
               </div>
-              <div className="space-y-1 text-blue-600 font-bold uppercase tracking-wider">
-                <SearchableSelect label={<span className="text-[10px] font-black uppercase tracking-widest">Owner</span>} options={ownerOptions} value={filterOwner} onChange={setFilterOwner} className="text-sm" />
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Task Date To</label>
+                <input type="date" className={getFilterClass(taskDateTo !== '')} value={taskDateTo} onChange={(e) => setTaskDateTo(e.target.value)}/>
               </div>
-              <div className="space-y-1 text-blue-600 font-bold uppercase tracking-wider">
-                <SearchableSelect label={<span className="text-[10px] font-black uppercase tracking-widest">Project</span>} options={projectOptions} value={filterProject} onChange={setFilterProject} className="text-sm" />
+
+              <div className="space-y-1 text-blue-600 font-black uppercase tracking-wider">
+                <SearchableSelect label={<span className="text-[10px] font-black uppercase tracking-widest">Status</span>} options={statusOptions} value={filterStatus} onChange={setFilterStatus} multiple={true} placeholder="All Status" className="text-sm" />
               </div>
+              <div className="space-y-1 text-blue-600 font-black uppercase tracking-wider">
+                <SearchableSelect label={<span className="text-[10px] font-black uppercase tracking-widest">Owner</span>} options={ownerOptions} value={filterOwner} onChange={setFilterOwner} multiple={true} placeholder="All Owners" className="text-sm" />
+              </div>
+              <div className="space-y-1 text-blue-600 font-black uppercase tracking-wider">
+                <SearchableSelect label={<span className="text-[10px] font-black uppercase tracking-widest">Project</span>} options={projectOptions} value={filterProject} onChange={setFilterProject} multiple={true} placeholder="All Projects" className="text-sm" />
+              </div>
+              <div className="space-y-1 text-blue-600 font-black uppercase tracking-wider">
+                <SearchableSelect label={<span className="text-[10px] font-black uppercase tracking-widest">Client</span>} options={clientOptions} value={filterClient} onChange={setFilterClient} multiple={true} placeholder="All Clients" className="text-sm" />
+              </div>
+
               {isVendorView ? (
-                  <div className="space-y-1 text-blue-600 font-bold uppercase tracking-wider">
-                    <SearchableSelect label={<span className="text-[10px] font-black uppercase tracking-widest">Vendor</span>} options={vendorOptions} value={filterVendor} onChange={setFilterVendor} className="text-sm" />
+                  <div className="space-y-1 text-blue-600 font-black uppercase tracking-wider">
+                    <SearchableSelect label={<span className="text-[10px] font-black uppercase tracking-widest">Vendor</span>} options={vendorOptions} value={filterVendor} onChange={setFilterVendor} multiple={true} placeholder="All Vendors" className="text-sm" />
                   </div>
               ) : (
-                  <div className="space-y-1 text-blue-600 font-bold uppercase tracking-wider">
-                    <SearchableSelect label={<span className="text-[10px] font-black uppercase tracking-widest">Assignee</span>} options={assigneeOptions} value={filterAssignee} onChange={setFilterAssignee} className="text-sm" />
+                  <div className="space-y-1 text-blue-600 font-black uppercase tracking-wider">
+                    <SearchableSelect label={<span className="text-[10px] font-black uppercase tracking-widest">Assignee</span>} options={assigneeOptions} value={filterAssignee} onChange={setFilterAssignee} multiple={true} placeholder="All Assignees" className="text-sm" />
                   </div>
               )}
               <div className="flex items-end">
@@ -288,7 +314,7 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
                 <div className="flex justify-between items-start">
                     <div className="space-y-1 max-w-[70%]">
                         <h4 className="text-sm font-black text-blue-900 leading-tight whitespace-normal break-words">{log.task}</h4>
-                        <div className="flex items-center gap-1.5 text-[10px] text-blue-600 font-bold uppercase whitespace-normal break-words">
+                        <div className="flex items-center gap-1.5 text-[10px] text-blue-600 font-black uppercase whitespace-normal break-words">
                             <Clock size={12} />
                             {formatToIndianDate(log.updateDate)}
                         </div>
@@ -304,19 +330,19 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
                 <div className="grid grid-cols-2 gap-2 py-2 border-y border-blue-50">
                     <div className="space-y-0.5">
                         <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Owner</span>
-                        <div className="flex items-center gap-1 text-[10px] text-blue-900 font-bold whitespace-normal break-words">
+                        <div className="flex items-center gap-1 text-[10px] text-blue-900 font-black whitespace-normal break-words">
                             <User size={10} /> {log.owner}
                         </div>
                     </div>
                     <div className="space-y-0.5">
                         <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Project</span>
-                        <div className="flex items-center gap-1 text-[10px] text-blue-900 font-bold whitespace-normal break-words">
+                        <div className="flex items-center gap-1 text-[10px] text-blue-900 font-black whitespace-normal break-words">
                             <Briefcase size={10} /> {String(log.project || '').split(' (')[0]}
                         </div>
                     </div>
                     <div className="space-y-0.5">
                         <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Client</span>
-                        <div className="flex items-center gap-1 text-[10px] text-blue-900 font-bold whitespace-normal break-words">
+                        <div className="flex items-center gap-1 text-[10px] text-blue-900 font-black whitespace-normal break-words">
                             <Building2 size={10} /> {log.clientName || '-'}
                         </div>
                     </div>
@@ -330,7 +356,7 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
                     ) : (
                         <div className="space-y-0.5">
                             <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Assignee</span>
-                            <div className="flex items-center gap-1 text-[10px] text-blue-900 font-bold whitespace-normal break-words">
+                            <div className="flex items-center gap-1 text-[10px] text-blue-900 font-black whitespace-normal break-words">
                                 <User size={10} /> {log.assignees}
                             </div>
                         </div>
@@ -346,47 +372,47 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
                 </button>
             </div>
         ))}
-        {paginatedLogs.length === 0 && <div className="text-center py-10 text-blue-300 font-bold uppercase text-xs">No logs found.</div>}
+        {paginatedLogs.length === 0 && <div className="text-center py-10 text-blue-300 font-black uppercase text-xs">No logs found.</div>}
       </div>
 
       <div className={`bg-white rounded-lg border-2 border-blue-400 shadow-sm overflow-hidden ${viewMode === 'card' ? 'hidden md:block' : 'block'}`}>
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse min-w-max table-fixed">
             <thead>
-              <tr className="bg-blue-600">
-                <th className={thClass} onClick={() => requestSort('task')}><div className="flex items-center">Task {getSortIcon('task')}</div></th>
-                <th className={thClass} onClick={() => requestSort('taskDate')}><div className="flex items-center">Task Date {getSortIcon('taskDate')}</div></th>
-                <th className={thClass} onClick={() => requestSort('updateDate')}><div className="flex items-center">Update Date {getSortIcon('updateDate')}</div></th>
-                <th className={thClass} onClick={() => requestSort('status')}><div className="flex items-center">Status {getSortIcon('status')}</div></th>
-                <th className={thClass} onClick={() => requestSort('hours')}><div className="flex items-center">Minutes {getSortIcon('hours')}</div></th>
-                <th className={thClass} onClick={() => requestSort('remarks')}><div className="flex items-center">Remarks {getSortIcon('remarks')}</div></th>
-                <th className={thClass} onClick={() => requestSort('owner')}><div className="flex items-center">Owner {getSortIcon('owner')}</div></th>
-                <th className={thClass} onClick={() => requestSort('project')}><div className="flex items-center">Project {getSortIcon('project')}</div></th>
-                <th className={thClass} onClick={() => requestSort('clientName')}><div className="flex items-center">Client {getSortIcon('clientName')}</div></th>
+              <tr className="!bg-blue-700">
+                <th className="px-4 py-3 text-[10px] font-black text-white uppercase tracking-widest border-r border-blue-500 w-16 text-center !bg-blue-700 sticky top-0 z-10">S.No.</th>
+                <th className={thClass} style={{ width: '350px' }} onClick={() => requestSort('task')}><div className="flex items-center">Task {getSortIcon('task')}</div></th>
+                <th className={thClass} style={{ width: '120px' }} onClick={() => requestSort('taskDate')}><div className="flex items-center">Task Date {getSortIcon('taskDate')}</div></th>
+                <th className={thClass} style={{ width: '200px' }} onClick={() => requestSort('project')}><div className="flex items-center">Project {getSortIcon('project')}</div></th>
+                <th className={thClass} style={{ width: '130px' }} onClick={() => requestSort('updateDate')}><div className="flex items-center">Update Date {getSortIcon('updateDate')}</div></th>
+                <th className={thClass} style={{ width: '120px' }} onClick={() => requestSort('status')}><div className="flex items-center">Status {getSortIcon('status')}</div></th>
+                <th className={thClass} style={{ width: '100px' }} onClick={() => requestSort('hours')}><div className="flex items-center">Minutes {getSortIcon('hours')}</div></th>
+                <th className={thClass} style={{ width: '300px' }} onClick={() => requestSort('remarks')}><div className="flex items-center">Remarks {getSortIcon('remarks')}</div></th>
+                <th className={thClass} style={{ width: '180px' }} onClick={() => requestSort('owner')}><div className="flex items-center">Owner {getSortIcon('owner')}</div></th>
                 {isVendorView ? (
-                    <th className={thClass} onClick={() => requestSort('vendor')}><div className="flex items-center">Vendor {getSortIcon('vendor')}</div></th>
+                    <th className={thClass} style={{ width: '180px' }} onClick={() => requestSort('vendor')}><div className="flex items-center">Vendor {getSortIcon('vendor')}</div></th>
                 ) : (
-                    <th className={thClass} onClick={() => requestSort('assignees')}><div className="flex items-center">Assignee {getSortIcon('assignees')}</div></th>
+                    <th className={thClass} style={{ width: '180px' }} onClick={() => requestSort('assignees')}><div className="flex items-center">Assignee {getSortIcon('assignees')}</div></th>
                 )}
-                <th className="px-6 py-4 text-xs font-black text-white uppercase tracking-widest text-center whitespace-normal">Actions</th>
+                <th className="px-6 py-4 text-xs font-black text-white uppercase tracking-widest text-center whitespace-normal !bg-blue-700 sticky top-0 z-10" style={{ width: '100px' }}>Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-blue-100">
-              {paginatedLogs.map((log) => (
+              {paginatedLogs.map((log, index) => (
                 <tr key={log.id} className="hover:bg-blue-50/50 transition-colors">
+                  <td className={`${tdClass} text-center font-bold text-blue-600 !whitespace-nowrap`}>{startEntry + index}</td>
                   <td className={`${tdClass} font-bold`} title={log.task}>{log.task}</td>
-                  <td className={`${tdClass}`}>{formatToIndianDate(log.taskDate)}</td>
-                  <td className={`${tdClass}`}>{formatToIndianDate(log.updateDate)}</td>
-                  <td className={tdClass}><span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-black uppercase tracking-tighter whitespace-normal border border-blue-200">{log.status}</span></td>
-                  <td className={`${tdClass} font-bold text-indigo-600`}>{log.hours || 0}</td>
-                  <td className={`${tdClass} italic text-blue-800`} title={log.remarks}>{log.remarks}</td>
-                  <td className={`${tdClass} font-bold text-xs`}>{log.owner}</td>
+                  <td className={`${tdClass} !whitespace-nowrap`}>{formatToIndianDate(log.taskDate)}</td>
                   <td className={`${tdClass} font-bold text-xs`} title={String(log.project || '').split(' (')[0]}>{String(log.project || '').split(' (')[0]}</td>
-                  <td className={`${tdClass} font-bold text-xs`} title={log.clientName}>{log.clientName || '-'}</td>
+                  <td className={`${tdClass} !whitespace-nowrap`}>{formatToIndianDate(log.updateDate)}</td>
+                  <td className={tdClass}><span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-black uppercase tracking-tighter !whitespace-nowrap border border-blue-200">{log.status}</span></td>
+                  <td className={`${tdClass} font-bold text-indigo-600 text-center`}>{log.hours || 0}</td>
+                  <td className={`${tdClass} italic text-blue-800`} title={log.remarks}>{log.remarks}</td>
+                  <td className={`${tdClass} font-bold text-xs uppercase`}>{log.owner}</td>
                   {isVendorView ? (
-                    <td className={`${tdClass} font-bold text-xs`}>{log.vendor}</td>
+                    <td className={`${tdClass} font-bold text-xs uppercase`}>{log.vendor}</td>
                   ) : (
-                    <td className={`${tdClass} font-bold text-xs`}>{log.assignees}</td>
+                    <td className={`${tdClass} font-bold text-xs uppercase`}>{log.assignees}</td>
                   )}
                   <td className={`${tdClass} text-center`}>
                     <button onClick={() => onDeleteLog(log.id, log.taskId)} className="p-1.5 text-red-500 hover:bg-red-50 border-2 border-transparent hover:border-red-600 rounded-md transition-all"><Trash2 size={16} /></button>
@@ -397,6 +423,26 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="flex justify-between items-center text-xs text-blue-600 font-black px-1 uppercase tracking-wider">
+          <span>Showing {startEntry} to {endEntry} of {sortedLogs.length} entries</span>
+          <div className="flex space-x-2">
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                className="px-4 py-1.5 bg-blue-600 text-white rounded shadow hover:bg-blue-700 disabled:opacity-50 transition-colors uppercase text-[10px] font-black" 
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                className="px-4 py-1.5 bg-blue-600 text-white rounded shadow hover:bg-blue-700 disabled:opacity-50 transition-colors uppercase text-[10px] font-black"
+                disabled={currentPage === totalPages || totalPages === 0}
+              >
+                Next
+              </button>
+          </div>
       </div>
     </div>
   );
