@@ -31,14 +31,13 @@ export const AddMultipleTasksView: React.FC<AddMultipleTasksViewProps> = ({
   onSaveTasks,
   currentUser
 }) => {
-  // Requirement: Show only one row when open
   const [rows, setRows] = useState<AddRow[]>([
     { id: '1', title: '', priority: 'Medium', project: '', assignees: [], owner: currentUser?.name || 'PANKAJ KUMAR JAIN', category: '', dueDate: '', notes: '' }
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
 
-  // Requirement: Column resizing
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
     task: 250,
     priority: 110,
@@ -109,7 +108,6 @@ export const AddMultipleTasksView: React.FC<AddMultipleTasksViewProps> = ({
     setRows(rows.map(r => r.id === id ? { ...r, [field]: value } : r));
   };
 
-  // Requirement: Submit worked all filled are not empty expect notes
   const isRowComplete = (r: AddRow) => {
     return r.title.trim() !== '' && 
            r.project !== '' && 
@@ -162,10 +160,9 @@ export const AddMultipleTasksView: React.FC<AddMultipleTasksViewProps> = ({
 
   return (
     <div className="space-y-0 animate-in fade-in duration-500 max-w-full mx-auto">
-      <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] border border-blue-100 flex flex-col min-h-[500px] overflow-hidden">
-        {/* Requirement: show scroll bar to go left right */}
-        <div className="overflow-x-auto custom-scrollbar overflow-y-visible">
-          <table className="w-full border-separate border-spacing-0 table-fixed min-w-max">
+      <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] border border-blue-100 flex flex-col min-h-[500px] overflow-visible">
+        <div className="overflow-x-auto custom-scrollbar overflow-y-visible pb-60">
+          <table className="w-full border-separate border-spacing-0 table-fixed min-w-max overflow-visible">
             <thead className="bg-blue-600 sticky top-0 z-20">
               <tr>
                 <th className={thClass} style={{ width: columnWidths.task }}>TASK <ResizeHandle col="task" /></th>
@@ -187,9 +184,13 @@ export const AddMultipleTasksView: React.FC<AddMultipleTasksViewProps> = ({
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-blue-50">
+            <tbody className="divide-y divide-blue-50 overflow-visible">
               {rows.map((row) => (
-                <tr key={row.id} className="hover:bg-blue-50/10 transition-colors group">
+                <tr 
+                  key={row.id} 
+                  className={`hover:bg-blue-50/10 transition-colors group relative ${activeRowId === row.id ? 'z-50' : 'z-10'}`}
+                  onFocusCapture={() => setActiveRowId(row.id)}
+                >
                   <td className={tdClass}>
                     <input 
                       type="text" 

@@ -846,7 +846,7 @@ export default function App() {
                     </div>
                     <div className="flex flex-col items-center">
                         <p className="text-indigo-600 font-black uppercase tracking-widest text-sm animate-pulse">Loading Workspace...</p>
-                        <p className="text-gray-400 text-[10px] mt-1 font-bold uppercase tracking-tighter">Synchronizing with Google Sheets</p>
+                        <p className="text-gray-400 text-[10px] mt-1 font-bold uppercase tracking-tighter">Synchronizing with Tasks</p>
                     </div>
                 </div>
               ) : (

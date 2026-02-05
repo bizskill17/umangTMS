@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Project, Task } from '../types';
 import { SearchableSelect } from './SearchableSelect';
@@ -18,12 +19,12 @@ interface UpdateMultipleViewProps {
 }
 
 export const UpdateMultipleView: React.FC<UpdateMultipleViewProps> = ({ projects, tasks, onUpdateTasks }) => {
-  // Requirement: Show only one row when open, minutes blank initially
   const [rows, setRows] = useState<UpdateRow[]>([
     { id: Math.random().toString(), projectId: '', taskId: null, remarks: '', minutes: '' },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
 
   const projectOptions = useMemo(() => {
     const uniqueProjectNames = Array.from(new Set(tasks.map(t => t.project)));
@@ -92,21 +93,18 @@ export const UpdateMultipleView: React.FC<UpdateMultipleViewProps> = ({ projects
     }
   };
 
-  // Requirement: Blue header white text, uppercase labels
   const thClass = "px-6 py-4 text-xs font-black text-white uppercase tracking-widest border-r border-indigo-500 last:border-r-0 text-left";
-  // Requirement: Show dropdown outside (prevent clipping)
   const tdClass = "px-4 py-4 border-r border-indigo-50 last:border-r-0 align-top relative";
 
   return (
-    <div className="max-w-7xl mx-auto space-y-0 animate-in fade-in slide-in-from-bottom-4 duration-300 pb-0">
+    <div className="max-w-7xl mx-auto space-y-0 animate-in fade-in slide-in-from-bottom-4 duration-300 pb-0 overflow-visible">
       <div className="bg-[#4f46e5] text-white p-5 rounded-t-2xl shadow-xl border-b-2 border-indigo-700">
         <h2 className="text-2xl font-black text-center uppercase tracking-[0.2em]">Update Multiple Tasks</h2>
       </div>
 
-      <div className="bg-white rounded-b-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] border border-indigo-100 flex flex-col min-h-[500px]">
-        {/* Requirement: Dropdown show outside - removed overflow-hidden or x-auto from this level */}
-        <div className="overflow-visible">
-          <table className="w-full border-separate border-spacing-0">
+      <div className="bg-white rounded-b-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] border border-indigo-100 flex flex-col min-h-[500px] overflow-visible">
+        <div className="overflow-x-auto custom-scrollbar overflow-y-visible pb-60">
+          <table className="w-full border-separate border-spacing-0 overflow-visible">
             <thead className="bg-indigo-600 sticky top-0 z-20">
               <tr>
                 <th className={thClass} style={{ width: '25%' }}>PROJECT</th>
@@ -116,9 +114,13 @@ export const UpdateMultipleView: React.FC<UpdateMultipleViewProps> = ({ projects
                 <th className="px-6 py-4 bg-indigo-600" style={{ width: '5%' }}></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-indigo-50">
+            <tbody className="divide-y divide-indigo-50 overflow-visible">
               {rows.map((row) => (
-                <tr key={row.id} className="hover:bg-indigo-50/10 transition-colors group">
+                <tr 
+                  key={row.id} 
+                  className={`hover:bg-indigo-50/10 transition-colors group relative ${activeRowId === row.id ? 'z-50' : 'z-10'}`}
+                  onFocusCapture={() => setActiveRowId(row.id)}
+                >
                   <td className={tdClass}>
                     <SearchableSelect
                       options={projectOptions}
@@ -213,7 +215,6 @@ export const UpdateMultipleView: React.FC<UpdateMultipleViewProps> = ({ projects
         </div>
       </div>
 
-      {/* Requirement: Blue footer bar with BizSkill logo centered */}
       <div className="bg-[#1e3a8a] w-full py-10 mt-12 flex flex-col items-center justify-center space-y-3">
           <div className="bg-white p-0 rounded shadow-md overflow-hidden">
              <div className="bg-black px-4 py-1 text-white text-xs font-black tracking-widest text-center border-b border-white/20">BIZ</div>
