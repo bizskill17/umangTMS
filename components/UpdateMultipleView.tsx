@@ -103,7 +103,8 @@ export const UpdateMultipleView: React.FC<UpdateMultipleViewProps> = ({ projects
       </div>
 
       <div className="bg-white rounded-b-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] border border-indigo-100 flex flex-col min-h-[500px] overflow-visible">
-        <div className="overflow-x-auto custom-scrollbar overflow-y-visible pb-60">
+        {/* Tight scroll container for UpdateMultipleView */}
+        <div className="overflow-x-auto custom-scrollbar overflow-y-visible border-b border-indigo-50">
           <table className="w-full border-separate border-spacing-0 overflow-visible">
             <thead className="bg-indigo-600 sticky top-0 z-20">
               <tr>

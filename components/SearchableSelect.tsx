@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, X, Check, Square, CheckSquare, ListChecks, Eraser } from 'lucide-react';
 
 interface Option {
@@ -16,7 +17,6 @@ interface SearchableSelectProps {
   placeholder?: string;
   required?: boolean;
   className?: string;
-  // Added disabled prop to interface to fix TypeScript error in UpdateMultipleView.tsx
   disabled?: boolean;
 }
 
@@ -29,17 +29,45 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   placeholder = 'Select...',
   required = false,
   className = '',
-  // Default disabled to false
   disabled = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+
+  // Update position when open or when window/scroll changes
+  const updatePosition = () => {
+    if (isOpen && wrapperRef.current) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+      // Listen to capture-phase scrolls to catch them on any container
+      window.addEventListener('scroll', updatePosition, true);
+      window.addEventListener('resize', updatePosition);
+    }
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (wrapperRef.current && !wrapperRef.current.contains(target) && 
+          dropdownRef.current && !dropdownRef.current.contains(target)) {
         setIsOpen(false);
       }
     };
@@ -47,7 +75,6 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Robust value normalization: Ensure value is an array if multiple is true
   const currentValues = useMemo(() => {
     if (!multiple) return typeof value === 'string' ? value : '';
     if (Array.isArray(value)) return value;
@@ -74,7 +101,6 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   }, [sortedOptions, searchTerm]);
 
   const handleSelect = (optionValue: string) => {
-    // Prevent selection if disabled
     if (disabled) return;
     if (multiple) {
       const vals = Array.isArray(currentValues) ? currentValues : [];
@@ -110,7 +136,6 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
   const removeValue = (e: React.MouseEvent, valToRemove: string) => {
     e.stopPropagation();
-    // Prevent removal if disabled
     if (disabled) return;
     if (Array.isArray(currentValues)) {
       onChange(currentValues.filter(v => v !== valToRemove));
@@ -147,6 +172,94 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     }
   };
 
+  const dropdownContent = (
+    <div 
+      ref={dropdownRef}
+      style={{
+        position: 'absolute',
+        top: coords.top,
+        left: coords.left,
+        width: coords.width,
+        zIndex: 9999
+      }}
+      className="mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-80 overflow-hidden flex flex-col animate-in fade-in slide-in-from-top-1 duration-200"
+    >
+      <div className="p-2 border-b border-gray-100 bg-gray-50 sticky top-0 z-10 space-y-2">
+        <div className="relative">
+          <input
+            ref={inputRef}
+            type="text"
+            className="w-full pl-3 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 font-medium"
+            placeholder="Search..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            autoFocus
+          />
+        </div>
+        
+        {multiple && (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleSelectAllVisible}
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-white border border-indigo-200 rounded-md hover:bg-indigo-50 transition-colors"
+            >
+              <ListChecks size={14} />
+              All
+            </button>
+            <button
+              type="button"
+              onClick={handleClearAllVisible}
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 transition-colors"
+            >
+              <Eraser size={14} />
+              Clear
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="overflow-y-auto flex-1 custom-scrollbar">
+        {filteredOptions.length > 0 ? (
+          filteredOptions.map(option => {
+            const isSelected = multiple 
+                ? (Array.isArray(currentValues) && currentValues.includes(option.value))
+                : currentValues === option.value;
+            
+            return (
+              <div
+                key={option.value}
+                className={`px-4 py-3 text-sm cursor-pointer flex items-center gap-3 transition-colors border-b border-gray-50 last:border-0 ${isSelected ? 'bg-indigo-50/50 text-indigo-700' : 'text-gray-700 hover:bg-gray-50'}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSelect(option.value);
+                }}
+              >
+                <div className="flex-shrink-0">
+                  {multiple ? (
+                    isSelected ? (
+                      <CheckSquare size={20} className="text-indigo-600" />
+                    ) : (
+                      <Square size={20} className="text-gray-300" />
+                    )
+                  ) : (
+                    isSelected && <Check size={18} className="text-indigo-600" />
+                  )}
+                </div>
+                <span className={`flex-1 ${isSelected ? 'font-bold' : 'font-medium'}`}>{option.label}</span>
+              </div>
+            );
+          })
+        ) : (
+          <div className="px-4 py-8 text-sm text-gray-400 text-center font-bold uppercase tracking-widest">
+            No matching results
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className={`space-y-1 relative ${className} ${disabled ? 'opacity-70' : ''}`} ref={wrapperRef}>
       {label && (
@@ -164,83 +277,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         <ChevronDown size={16} className={`text-indigo-400 flex-shrink-0 ml-2 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </div>
 
-      {isOpen && !disabled && (
-        <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-80 overflow-hidden flex flex-col animate-in fade-in slide-in-from-top-1 duration-200">
-          <div className="p-2 border-b border-gray-100 bg-gray-50 sticky top-0 z-10 space-y-2">
-            <div className="relative">
-              <input
-                ref={inputRef}
-                type="text"
-                className="w-full pl-3 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 font-medium"
-                placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                autoFocus
-              />
-            </div>
-            
-            {multiple && (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleSelectAllVisible}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-white border border-indigo-200 rounded-md hover:bg-indigo-50 transition-colors"
-                >
-                  <ListChecks size={14} />
-                  All
-                </button>
-                <button
-                  type="button"
-                  onClick={handleClearAllVisible}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 transition-colors"
-                >
-                  <Eraser size={14} />
-                  Clear
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="overflow-y-auto flex-1 custom-scrollbar">
-            {filteredOptions.length > 0 ? (
-              filteredOptions.map(option => {
-                const isSelected = multiple 
-                    ? (Array.isArray(currentValues) && currentValues.includes(option.value))
-                    : currentValues === option.value;
-                
-                return (
-                  <div
-                    key={option.value}
-                    className={`px-4 py-3 text-sm cursor-pointer flex items-center gap-3 transition-colors border-b border-gray-50 last:border-0 ${isSelected ? 'bg-indigo-50/50 text-indigo-700' : 'text-gray-700 hover:bg-gray-50'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSelect(option.value);
-                    }}
-                  >
-                    <div className="flex-shrink-0">
-                      {multiple ? (
-                        isSelected ? (
-                          <CheckSquare size={20} className="text-indigo-600" />
-                        ) : (
-                          <Square size={20} className="text-gray-300" />
-                        )
-                      ) : (
-                        isSelected && <Check size={18} className="text-indigo-600" />
-                      )}
-                    </div>
-                    <span className={`flex-1 ${isSelected ? 'font-bold' : 'font-medium'}`}>{option.label}</span>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="px-4 py-8 text-sm text-gray-400 text-center font-bold uppercase tracking-widest">
-                No matching results
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {isOpen && !disabled && createPortal(dropdownContent, document.body)}
     </div>
   );
 };
