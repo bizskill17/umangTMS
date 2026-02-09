@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Download, FileText, Search, CheckSquare, LayoutGrid, LayoutList, Filter, X, Clock, AlertTriangle, Users, Trash2, AlertCircle, Tags } from 'lucide-react';
 import { TaskTable } from './TaskTable';
@@ -226,7 +225,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
     const filterText = `Applied Filters: ${getFilterSummary()}`;
     const generatedOn = `Generated on: ${new Date().toLocaleString('en-GB')}`;
 
-    const headers = ['Date', 'Task', 'Notes', 'Category', 'Responsible', 'Owner', 'Project', 'Client Name', 'Status', 'Last Update Date', 'Last Update Remark', 'Priority', 'Due Date'];
+    const headers = ['Date', 'Task', 'Notes', 'Category', 'Responsible', 'Owner', 'Project', 'Client', 'Status', 'Last Update Date', 'Last Update Remark', 'Priority', 'Due Date'];
     
     const csvRows = [
         `"${filterText}"`,
@@ -279,7 +278,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
     const splitFilters = doc.splitTextToSize(`Active Filters: ${filterSummary}`, 260);
     doc.text(splitFilters, 14, 27);
 
-    const headers = [['S.No', 'Date', 'Task', 'Notes', 'Project', 'Responsible', 'Status', 'Last Update Date', 'Last Update Remark', 'Due Date']];
+    const headers = [['S.No', 'Date', 'Task', 'Notes', 'Project', 'Client', 'Responsible', 'Status', 'Last Update Date', 'Last Update Remark', 'Due Date']];
     
     const data = finalSortedTasks.map((t, i) => {
       const isNotStarted = t.status === 'Not Yet Started';
@@ -289,6 +288,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
         t.title,
         t.remarks || '-',
         t.project.split(' (')[0],
+        t.clientName || '-',
         isVendorView ? (t.vendor || '-') : (t.assignees || '-'),
         t.status,
         isNotStarted ? '' : formatToIndianDate(t.lastUpdateDate || ''),
@@ -304,9 +304,10 @@ export const TasksView: React.FC<TasksViewProps> = ({
       styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
       headStyles: { fillColor: [79, 70, 229] },
       columnStyles: {
-        2: { cellWidth: 40 }, 
-        3: { cellWidth: 40 },
-        8: { cellWidth: 40 }  
+        2: { cellWidth: 35 }, 
+        3: { cellWidth: 35 },
+        5: { cellWidth: 25 },
+        9: { cellWidth: 35 }  
       }
     });
 
