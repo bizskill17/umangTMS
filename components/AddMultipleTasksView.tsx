@@ -161,7 +161,8 @@ export const AddMultipleTasksView: React.FC<AddMultipleTasksViewProps> = ({
   return (
     <div className="space-y-0 animate-in fade-in duration-500 max-w-full mx-auto">
       <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] border border-blue-100 flex flex-col min-h-[500px] overflow-visible">
-        <div className="overflow-x-auto custom-scrollbar overflow-y-visible pb-60">
+        {/* Requirement: Dropdown show over scroll bar - achieved by adding extra bottom padding to the table content container */}
+        <div className="overflow-x-auto custom-scrollbar overflow-y-visible pb-80">
           <table className="w-full border-separate border-spacing-0 table-fixed min-w-max overflow-visible">
             <thead className="bg-blue-600 sticky top-0 z-20">
               <tr>
@@ -278,10 +279,9 @@ export const AddMultipleTasksView: React.FC<AddMultipleTasksViewProps> = ({
               ))}
             </tbody>
           </table>
-        </div>
 
-        <div className="p-8 bg-white flex flex-col gap-10 mt-auto">
-          <div className="flex flex-col items-center gap-6">
+          {/* Submit button show just below of last row - Moved inside the scrollable container's logic (or immediately after) */}
+          <div className="px-8 py-10 flex flex-col items-center gap-6 sticky left-0 w-full md:w-fit mx-auto">
             <button 
               onClick={handleSubmit}
               disabled={isSubmitting || !rows.some(isRowComplete)}
