@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { X, AlertTriangle, Clock } from 'lucide-react';
 import { Task, User, Vendor } from '../types';
@@ -96,7 +95,10 @@ export const UpdateTaskModal: React.FC<UpdateTaskModalProps> = ({ isOpen, onClos
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg animate-in fade-in zoom-in duration-200">
         
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
-          <h2 className="text-xl font-bold text-indigo-600">{isConfirming ? 'Confirm Status Update' : 'Update Status'}</h2>
+          <div>
+            <h2 className="text-xl font-bold text-indigo-600">{isConfirming ? 'Confirm Status Update' : 'Update Status'}</h2>
+            {!isConfirming && <p className="text-sm font-bold text-gray-500 mt-1 line-clamp-1">{task.title}</p>}
+          </div>
           <button 
             type="button"
             onClick={onClose}
@@ -113,6 +115,7 @@ export const UpdateTaskModal: React.FC<UpdateTaskModalProps> = ({ isOpen, onClos
                 <AlertTriangle size={48} />
               </div>
               <h3 className="text-lg font-bold text-gray-900">Are you sure?</h3>
+              <p className="text-sm text-gray-500">You are updating the status for:<br/><span className="font-bold text-indigo-600">{task.title}</span></p>
             </div>
             <div className="flex gap-3 pt-4">
               <button onClick={() => setIsConfirming(false)} className="flex-1 px-6 py-3 text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors uppercase tracking-wider">Cancel</button>

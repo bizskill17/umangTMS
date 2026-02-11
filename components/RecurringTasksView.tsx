@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { RotateCcw, Plus, Search, Filter, X, FileText, Download, Info, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Edit2, LayoutGrid, LayoutList, AlertCircle, Calendar } from 'lucide-react';
 import { RecurringTask, RecurringTaskAction } from '../types';
@@ -318,8 +319,8 @@ export const RecurringTasksView: React.FC<RecurringTasksViewProps> = ({
         </div>
         {showFilters && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
-            <SearchableSelect label="Category" options={categories.map(c => ({ value: c, label: c }))} value={filterCategory} onChange={setFilterCategory} />
-            <SearchableSelect label="Assignee" options={assignees.map(a => ({ value: a, label: a }))} value={filterAssignee} onChange={setFilterAssignee} />
+            <SearchableSelect label="Category" options={categories.map(c => ({ value: c.label, label: c.label }))} value={filterCategory} onChange={setFilterCategory} />
+            <SearchableSelect label="Assignee" options={assignees.map(a => ({ value: a.label, label: a.label }))} value={filterAssignee} onChange={setFilterAssignee} />
             <div><label className="text-[10px] font-bold text-indigo-600 uppercase mb-1 block">Status</label><select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-3 py-2 border border-indigo-300 rounded-md text-sm">{statuses.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
             <div className="flex items-end"><button onClick={() => { setFilterCategory('All'); setFilterAssignee('All'); setFilterStatus('All'); setSearchTerm(''); }} className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-600 text-white border border-red-700 rounded-md hover:bg-red-700 text-sm font-medium h-[42px] transition-colors shadow-sm"><X size={16} />Clear</button></div>
           </div>
@@ -361,9 +362,13 @@ export const RecurringTasksView: React.FC<RecurringTasksViewProps> = ({
                 const isOverdue = effectiveStatus !== 'Complete' && nextDueObj && (nextDueObj.getTime() < new Date().setHours(0,0,0,0));
                 
                 return (
-                  <tr key={task.id} className={`hover:bg-gray-50 transition-colors ${selectedIds.includes(task.id) ? 'bg-indigo-50/50' : ''}`}>
+                  <tr 
+                    key={task.id} 
+                    onDoubleClick={() => onUpdate(task)}
+                    className={`hover:bg-gray-50 transition-colors cursor-pointer ${selectedIds.includes(task.id) ? 'bg-indigo-50/50' : ''}`}
+                  >
                     {isAdmin && (
-                      <td className={`${tdClass} text-center`}>
+                      <td className={`${tdClass} text-center`} onDoubleClick={(e) => e.stopPropagation()}>
                         <input 
                           type="checkbox" 
                           className="rounded border-gray-300 text-blue-600 h-4 w-4" 
@@ -393,7 +398,7 @@ export const RecurringTasksView: React.FC<RecurringTasksViewProps> = ({
                         {nextDueStr}
                     </td>
                     <td className={tdClass}>
-                      <div className="flex items-center gap-1 justify-center">
+                      <div className="flex items-center gap-1 justify-center" onDoubleClick={(e) => e.stopPropagation()}>
                         <button onClick={() => onUpdate(task)} className="px-2 py-1 bg-indigo-600 text-white rounded text-[10px] font-bold hover:bg-indigo-700">Update</button>
                         <button onClick={() => onEdit(task)} className="p-1 text-indigo-600 hover:bg-indigo-50 rounded" title="Edit Master"><Edit2 size={16} /></button>
                         <button onClick={() => onViewHistory(task)} className="p-1 text-indigo-500 hover:bg-indigo-50 rounded"><Info size={16} /></button>
@@ -417,7 +422,11 @@ export const RecurringTasksView: React.FC<RecurringTasksViewProps> = ({
              const isOverdue = effectiveStatus !== 'Complete' && nextDueObj && (nextDueObj.getTime() < new Date().setHours(0,0,0,0));
 
              return (
-                <div key={task.id} className={`bg-white rounded-lg shadow-sm border p-4 relative ${selectedIds.includes(task.id) ? 'border-indigo-500 bg-indigo-50/30' : 'border-gray-200'}`}>
+                <div 
+                  key={task.id} 
+                  onDoubleClick={() => onUpdate(task)}
+                  className={`bg-white rounded-lg shadow-sm border p-4 relative cursor-pointer ${selectedIds.includes(task.id) ? 'border-indigo-500 bg-indigo-50/30' : 'border-gray-200'}`}
+                >
                     <div className="mb-3">
                     <div className="flex justify-between items-start mb-1">
                         <div className="flex items-center gap-2">
@@ -427,6 +436,7 @@ export const RecurringTasksView: React.FC<RecurringTasksViewProps> = ({
                                     className="rounded border-gray-300 text-blue-600 h-5 w-5" 
                                     checked={selectedIds.includes(task.id)} 
                                     onChange={() => handleSelectOne(task.id)}
+                                    onDoubleClick={(e) => e.stopPropagation()}
                                 />
                             )}
                             <span className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-[10px] font-bold">#{startEntry + idx}</span>
@@ -446,7 +456,7 @@ export const RecurringTasksView: React.FC<RecurringTasksViewProps> = ({
                     </div>
                     <div className="flex gap-2 pt-3 border-t border-gray-100 flex-wrap">
                         <button onClick={() => onUpdate(task)} className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm whitespace-normal break-words"><RotateCcw size={14} />Update</button>
-                        <div className="flex gap-1 w-full sm:w-auto justify-end">
+                        <div className="flex gap-1 w-full sm:w-auto justify-end" onDoubleClick={(e) => e.stopPropagation()}>
                             <button onClick={() => onViewHistory(task)} className="p-2 text-indigo-500 hover:bg-gray-100 rounded-full border border-gray-100"><Info size={18} /></button>
                             <button onClick={() => onEdit(task)} className="p-2 text-indigo-600 hover:bg-gray-100 rounded-full border border-gray-100"><Edit2 size={18} /></button>
                             <button onClick={() => onDelete(task.id)} className="p-2 text-red-600 hover:bg-gray-100 rounded-full border border-gray-100"><Trash2 size={18} /></button>

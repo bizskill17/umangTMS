@@ -143,9 +143,13 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                 const isRowHighlighted = task.status !== 'Not Yet Started' && isUpdatedToday(task.lastUpdateDate);
                 
                 return (
-                  <tr key={task.id} className={`hover:bg-blue-50 transition-colors ${selectedIds.includes(task.id) ? 'bg-blue-50/50' : ''} ${isSyncing ? 'opacity-60' : ''} ${isRowHighlighted ? '!bg-green-100' : ''}`}>
+                  <tr 
+                    key={task.id} 
+                    onDoubleClick={() => onUpdateTask(task)}
+                    className={`hover:bg-blue-50 transition-colors cursor-pointer ${selectedIds.includes(task.id) ? 'bg-blue-50/50' : ''} ${isSyncing ? 'opacity-60' : ''} ${isRowHighlighted ? '!bg-green-100' : ''}`}
+                  >
                     {showSelection && (
-                      <td className={`${tdClass} text-center`}>
+                      <td className={`${tdClass} text-center`} onDoubleClick={(e) => e.stopPropagation()}>
                         <input 
                           type="checkbox" 
                           className="rounded border-gray-300 text-blue-600 h-4 w-4" 
@@ -178,7 +182,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                     </td>
                     <td className={tdClass}>{displayCategory}</td>
                     <td className={tdClass}>
-                      <div className="flex items-center space-x-2 justify-center">
+                      <div className="flex items-center space-x-2 justify-center" onDoubleClick={(e) => e.stopPropagation()}>
                         <button onClick={() => onUpdateTask(task)} disabled={isSyncing} className="px-2 py-1 bg-blue-600 rounded text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-30 uppercase tracking-tighter">Update</button>
                         <button onClick={() => onEditTask(task)} disabled={isSyncing} className="p-1 text-blue-600 hover:text-blue-800 disabled:opacity-30"><Edit2 size={16} /></button>
                         <button onClick={() => onViewHistory(task)} disabled={isSyncing} className="p-1 text-red-500 hover:text-red-700 disabled:opacity-30"><Info size={16} /></button>
@@ -207,13 +211,17 @@ export const TaskTable: React.FC<TaskTableProps> = ({
           const isCardHighlighted = task.status !== 'Not Yet Started' && isUpdatedToday(task.lastUpdateDate);
 
           return (
-            <div key={task.id} className={`bg-white rounded-xl shadow-lg p-5 relative border-2 ${priorityBorderColor} ${isSyncing ? 'opacity-70' : ''} ${isCardHighlighted ? '!bg-green-50/80 !border-green-400' : ''}`}>
+            <div 
+              key={task.id} 
+              onDoubleClick={() => onUpdateTask(task)}
+              className={`bg-white rounded-xl shadow-lg p-5 relative border-2 cursor-pointer ${priorityBorderColor} ${isSyncing ? 'opacity-70' : ''} ${isCardHighlighted ? '!bg-green-50/80 !border-green-400' : ''}`}
+            >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-2" onClick={() => toggleExpand(task.id)}>
                     <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold">#{startIndex + idx}</span>
                     <h3 className="text-base font-bold leading-tight text-blue-800">{task.title || '-'}</h3>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" onDoubleClick={(e) => e.stopPropagation()}>
                   <button onClick={() => toggleExpand(task.id)} className="p-1 text-blue-600 hover:bg-blue-50 rounded">
                     {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                   </button>
@@ -291,7 +299,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                 <span className={`flex items-center justify-center text-center px-2 py-1.5 rounded-full text-[8px] font-black uppercase whitespace-normal break-words min-w-[90px] ${getStatusColor(task.status)}`}>
                     {task.status}
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" onDoubleClick={(e) => e.stopPropagation()}>
                     <button onClick={() => onViewHistory(task)} className="p-2 bg-blue-100 text-blue-600 hover:bg-blue-200 rounded-lg transition-colors shadow-sm"><Info size={18} /></button>
                     <button onClick={() => onEditTask(task)} className="p-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-lg transition-colors shadow-sm"><Edit2 size={18} /></button>
                     {canDelete && <button onClick={() => onDeleteTask(task.id, isVendorView)} className="p-2 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg transition-colors shadow-sm"><Trash2 size={18} /></button>}
