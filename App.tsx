@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
@@ -72,7 +71,7 @@ const AUTO_SYNC_INTERVAL = 120000;
 const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
   
-  // All other items grouped under Tasks section
+  // Tasks Section
   { id: 'all-tasks', label: 'All Tasks', icon: <CheckSquare size={20} />, section: 'Tasks' },
   { id: 'add-multiple', label: 'Add Multiple', icon: <ListPlus size={20} />, section: 'Tasks' },
   { id: 'pending', label: 'Pending Tasks', icon: <Clock size={20} />, section: 'Tasks' },
@@ -83,26 +82,26 @@ const navItems: NavItem[] = [
   { id: 'activity-dashboard', label: 'Activity Dashboard', icon: <BarChart3 size={20} />, section: 'Tasks' },
   { id: 'action-log', label: 'Action Log', icon: <History size={20} />, section: 'Tasks' },
   
-  // Vendor Items merged into Tasks
-  { id: 'pending-vendor-tasks', label: 'Vendor Pending', icon: <Hammer size={20} />, section: 'Tasks' },
-  { id: 'vendor-tasks', label: 'Vendor All', icon: <Layers size={20} />, section: 'Tasks' },
-  { id: 'completed-vendor-tasks', label: 'Vendor History', icon: <CheckCircle size={20} />, section: 'Tasks' },
-  { id: 'vendor-action-log', label: 'Vendor Log', icon: <History size={20} />, section: 'Tasks' },
+  // Vendor Section
+  { id: 'pending-vendor-tasks', label: 'Vendor Pending', icon: <Hammer size={20} />, section: 'Vendor' },
+  { id: 'vendor-tasks', label: 'Vendor All', icon: <Layers size={20} />, section: 'Vendor' },
+  { id: 'completed-vendor-tasks', label: 'Vendor History', icon: <CheckCircle size={20} />, section: 'Vendor' },
+  { id: 'vendor-action-log', label: 'Vendor Log', icon: <History size={20} />, section: 'Vendor' },
   
-  // Recurring Items merged into Tasks
-  { id: 'due-recurring-tasks', label: 'Due Recurring', icon: <AlertCircle size={20} />, section: 'Tasks' },
-  { id: 'recurring-tasks', label: 'Recurring Rules', icon: <RotateCcw size={20} />, section: 'Tasks' },
-  { id: 'recurring-actions', label: 'Recurring Log', icon: <History size={20} />, section: 'Tasks' },
+  // Recurring Tasks Section
+  { id: 'due-recurring-tasks', label: 'Due Recurring', icon: <AlertCircle size={20} />, section: 'Recurring Tasks' },
+  { id: 'recurring-tasks', label: 'Recurring Rules', icon: <RotateCcw size={20} />, section: 'Recurring Tasks' },
+  { id: 'recurring-actions', label: 'Recurring Log', icon: <History size={20} />, section: 'Recurring Tasks' },
   
-  // Master Items merged into Tasks (for Admin)
-  { id: 'users', label: 'Users', icon: <Users size={20} />, section: 'Tasks' },
-  { id: 'clients', label: 'Clients', icon: <Building2 size={20} />, section: 'Tasks' },
-  { id: 'projects', label: 'Projects', icon: <Briefcase size={20} />, section: 'Tasks' },
-  { id: 'categories', label: 'Categories', icon: <Tags size={20} />, section: 'Tasks' },
-  { id: 'vendor-categories', label: 'Vendor Categories', icon: <Tags size={20} />, section: 'Tasks' },
-  { id: 'vendors', label: 'Vendors', icon: <Truck size={20} />, section: 'Tasks' },
-  { id: 'settings', label: 'Settings', icon: <Settings size={20} />, section: 'Tasks' },
-  { id: 'telegram-setup', label: 'Telegram Setup', icon: <Send size={20} />, section: 'Tasks' },
+  // Master Section
+  { id: 'users', label: 'Users', icon: <Users size={20} />, section: 'Master' },
+  { id: 'clients', label: 'Clients', icon: <Building2 size={20} />, section: 'Master' },
+  { id: 'projects', label: 'Projects', icon: <Briefcase size={20} />, section: 'Master' },
+  { id: 'categories', label: 'Categories', icon: <Tags size={20} />, section: 'Master' },
+  { id: 'vendor-categories', label: 'Vendor Categories', icon: <Tags size={20} />, section: 'Master' },
+  { id: 'vendors', label: 'Vendors', icon: <Truck size={20} />, section: 'Master' },
+  { id: 'settings', label: 'Settings', icon: <Settings size={20} />, section: 'Master' },
+  { id: 'telegram-setup', label: 'Telegram Setup', icon: <Send size={20} />, section: 'Master' },
 ];
 
 export const formatToIndianDate = (dateInput: any): string => {
