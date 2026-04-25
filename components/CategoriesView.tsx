@@ -141,4 +141,3 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ categories, onAd
     </div>
   );
 };
-

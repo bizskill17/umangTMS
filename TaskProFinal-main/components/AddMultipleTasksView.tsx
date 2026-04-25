@@ -1,6 +1,6 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Plus, Trash2, CheckCircle2, Loader2, ListPlus } from 'lucide-react';
+import React, { useState, useMemo, useRef } from 'react';
+import { Plus, Trash2, CheckCircle2, Loader2 } from 'lucide-react';
 import { Project, Task, User, Category } from '../types';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -161,133 +161,246 @@ export const AddMultipleTasksView: React.FC<AddMultipleTasksViewProps> = ({
   return (
     <div className="space-y-0 animate-in fade-in duration-500 max-w-full mx-auto">
       <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] border border-blue-100 flex flex-col min-h-[400px] overflow-visible">
-        {/* Scrollable Container - Tight against content to keep scrollbar just below last row */}
-        <div className="overflow-x-auto custom-scrollbar border-b border-black">
-          <table className="w-full border-separate border-spacing-0 table-fixed min-w-max overflow-visible">
-            <thead className="bg-blue-600 sticky top-0 z-20">
-              <tr>
-                <th className={thClass} style={{ width: columnWidths.task }}>TASK <ResizeHandle col="task" /></th>
-                <th className={thClass} style={{ width: columnWidths.priority }}>PRIORITY <ResizeHandle col="priority" /></th>
-                <th className={thClass} style={{ width: columnWidths.project }}>PROJECT <ResizeHandle col="project" /></th>
-                <th className={thClass} style={{ width: columnWidths.assignee }}>ASSIGNEE <ResizeHandle col="assignee" /></th>
-                <th className={thClass} style={{ width: columnWidths.owner }}>TASK OWNER <ResizeHandle col="owner" /></th>
-                <th className={thClass} style={{ width: columnWidths.category }}>CATEGORY <ResizeHandle col="category" /></th>
-                <th className={thClass} style={{ width: columnWidths.dueDate }}>DUE DATE <ResizeHandle col="dueDate" /></th>
-                <th className={thClass} style={{ width: columnWidths.notes }}>NOTES <ResizeHandle col="notes" /></th>
-                <th className="px-4 py-3 bg-blue-600 w-[80px] text-center">
-                  <button 
-                    onClick={addRow}
-                    className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg transition-colors border border-white/30"
-                    title="Add new row"
+        <div className="hidden md:block">
+          {/* Scrollable Container - Tight against content to keep scrollbar just below last row */}
+          <div className="overflow-x-auto custom-scrollbar border-b border-black">
+            <table className="w-full border-separate border-spacing-0 table-fixed min-w-max overflow-visible">
+              <thead className="bg-blue-600 sticky top-0 z-20">
+                <tr>
+                  <th className={thClass} style={{ width: columnWidths.task }}>TASK <ResizeHandle col="task" /></th>
+                  <th className={thClass} style={{ width: columnWidths.priority }}>PRIORITY <ResizeHandle col="priority" /></th>
+                  <th className={thClass} style={{ width: columnWidths.project }}>PROJECT <ResizeHandle col="project" /></th>
+                  <th className={thClass} style={{ width: columnWidths.assignee }}>ASSIGNEE <ResizeHandle col="assignee" /></th>
+                  <th className={thClass} style={{ width: columnWidths.owner }}>TASK OWNER <ResizeHandle col="owner" /></th>
+                  <th className={thClass} style={{ width: columnWidths.category }}>CATEGORY <ResizeHandle col="category" /></th>
+                  <th className={thClass} style={{ width: columnWidths.dueDate }}>DUE DATE <ResizeHandle col="dueDate" /></th>
+                  <th className={thClass} style={{ width: columnWidths.notes }}>NOTES <ResizeHandle col="notes" /></th>
+                  <th className="px-4 py-3 bg-blue-600 w-[80px] text-center">
+                    <button
+                      onClick={addRow}
+                      className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg transition-colors border border-white/30"
+                      title="Add new row"
+                    >
+                      <Plus size={18} />
+                    </button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black overflow-visible">
+                {rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className={`hover:bg-blue-50/10 transition-colors group relative ${activeRowId === row.id ? 'z-50' : 'z-10'}`}
+                    onFocusCapture={() => setActiveRowId(row.id)}
                   >
-                    <Plus size={18} />
-                  </button>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-black overflow-visible">
-              {rows.map((row) => (
-                <tr 
-                  key={row.id} 
-                  className={`hover:bg-blue-50/10 transition-colors group relative ${activeRowId === row.id ? 'z-50' : 'z-10'}`}
-                  onFocusCapture={() => setActiveRowId(row.id)}
+                    <td className={tdClass}>
+                      <input
+                        type="text"
+                        value={row.title}
+                        onChange={(e) => updateField(row.id, 'title', e.target.value)}
+                        placeholder="Task title..."
+                        className="w-full px-2 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-xs font-medium"
+                      />
+                    </td>
+                    <td className={tdClass}>
+                      <select
+                        value={row.priority}
+                        onChange={(e) => updateField(row.id, 'priority', e.target.value)}
+                        className="w-full px-1 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-[10px] font-bold"
+                      >
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
+                      </select>
+                    </td>
+                    <td className={tdClass}>
+                      <SearchableSelect
+                        options={projectOptions}
+                        value={row.project}
+                        onChange={(val) => updateField(row.id, 'project', val)}
+                        placeholder="Project..."
+                        className="!min-h-0 text-[10px]"
+                      />
+                    </td>
+                    <td className={tdClass}>
+                      <SearchableSelect
+                        multiple
+                        options={userOptions}
+                        value={row.assignees}
+                        onChange={(val) => updateField(row.id, 'assignees', val)}
+                        placeholder="Assignees..."
+                        className="!min-h-0 text-[10px]"
+                      />
+                    </td>
+                    <td className={tdClass}>
+                      <SearchableSelect
+                        options={userOptions}
+                        value={row.owner}
+                        onChange={(val) => updateField(row.id, 'owner', val)}
+                        placeholder="Owner..."
+                        className="!min-h-0 text-[10px]"
+                      />
+                    </td>
+                    <td className={tdClass}>
+                      <SearchableSelect
+                        options={categoryOptions}
+                        value={row.category}
+                        onChange={(val) => updateField(row.id, 'category', val)}
+                        placeholder="Category..."
+                        className="!min-h-0 text-[10px]"
+                      />
+                    </td>
+                    <td className={tdClass}>
+                      <input
+                        type="date"
+                        value={row.dueDate}
+                        onChange={(e) => updateField(row.id, 'dueDate', e.target.value)}
+                        className="w-full px-1 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-[10px] text-center font-bold"
+                      />
+                    </td>
+                    <td className={tdClass}>
+                      <textarea
+                        value={row.notes}
+                        onChange={(e) => updateField(row.id, 'notes', e.target.value)}
+                        rows={1}
+                        placeholder="Notes..."
+                        className="w-full px-2 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-xs resize-none"
+                      />
+                    </td>
+                    <td className="px-2 py-3 text-center w-[80px]">
+                      <button
+                        onClick={() => removeRow(row.id)}
+                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                        title="Remove row"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="md:hidden p-3 space-y-3 border-b border-blue-100 bg-blue-50/30">
+          {rows.map((row, idx) => (
+            <div key={row.id} className="bg-white border border-blue-200 rounded-xl shadow-sm p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-widest text-blue-700">Task Row {idx + 1}</span>
+                <button
+                  onClick={() => removeRow(row.id)}
+                  disabled={rows.length === 1}
+                  className={`p-1.5 rounded-full transition-all ${rows.length === 1 ? 'text-gray-300 cursor-not-allowed' : 'text-red-500 hover:bg-red-50'}`}
+                  title="Remove row"
                 >
-                  <td className={tdClass}>
-                    <input 
-                      type="text" 
-                      value={row.title} 
-                      onChange={(e) => updateField(row.id, 'title', e.target.value)}
-                      placeholder="Task title..."
-                      className="w-full px-2 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-xs font-medium"
-                    />
-                  </td>
-                  <td className={tdClass}>
-                    <select 
-                      value={row.priority} 
+                  <Trash2 size={16} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-blue-700 mb-1 block">Task</label>
+                  <input
+                    type="text"
+                    value={row.title}
+                    onChange={(e) => updateField(row.id, 'title', e.target.value)}
+                    placeholder="Task title..."
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-blue-700 mb-1 block">Priority</label>
+                    <select
+                      value={row.priority}
                       onChange={(e) => updateField(row.id, 'priority', e.target.value)}
-                      className="w-full px-1 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-[10px] font-bold"
+                      className="w-full px-2 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-xs font-bold"
                     >
                       <option value="High">High</option>
                       <option value="Medium">Medium</option>
                       <option value="Low">Low</option>
                     </select>
-                  </td>
-                  <td className={tdClass}>
-                    <SearchableSelect 
-                      options={projectOptions} 
-                      value={row.project} 
-                      onChange={(val) => updateField(row.id, 'project', val)}
-                      placeholder="Project..."
-                      className="!min-h-0 text-[10px]"
-                    />
-                  </td>
-                  <td className={tdClass}>
-                    <SearchableSelect 
-                      multiple 
-                      options={userOptions} 
-                      value={row.assignees} 
-                      onChange={(val) => updateField(row.id, 'assignees', val)}
-                      placeholder="Assignees..."
-                      className="!min-h-0 text-[10px]"
-                    />
-                  </td>
-                  <td className={tdClass}>
-                    <SearchableSelect 
-                      options={userOptions} 
-                      value={row.owner} 
-                      onChange={(val) => updateField(row.id, 'owner', val)}
-                      placeholder="Owner..."
-                      className="!min-h-0 text-[10px]"
-                    />
-                  </td>
-                  <td className={tdClass}>
-                    <SearchableSelect 
-                      options={categoryOptions} 
-                      value={row.category} 
-                      onChange={(val) => updateField(row.id, 'category', val)}
-                      placeholder="Category..."
-                      className="!min-h-0 text-[10px]"
-                    />
-                  </td>
-                  <td className={tdClass}>
-                    <input 
-                      type="date" 
-                      value={row.dueDate} 
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-blue-700 mb-1 block">Due Date</label>
+                    <input
+                      type="date"
+                      value={row.dueDate}
                       onChange={(e) => updateField(row.id, 'dueDate', e.target.value)}
-                      className="w-full px-1 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-[10px] text-center font-bold"
+                      className="w-full px-2 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-xs font-bold"
                     />
-                  </td>
-                  <td className={tdClass}>
-                    <textarea 
-                      value={row.notes} 
-                      onChange={(e) => updateField(row.id, 'notes', e.target.value)}
-                      rows={1}
-                      placeholder="Notes..."
-                      className="w-full px-2 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-xs resize-none"
-                    />
-                  </td>
-                  <td className="px-2 py-3 text-center w-[80px]">
-                    <button 
-                      onClick={() => removeRow(row.id)}
-                      className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
-                      title="Remove row"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </div>
+
+                <SearchableSelect
+                  label="Project"
+                  options={projectOptions}
+                  value={row.project}
+                  onChange={(val) => updateField(row.id, 'project', val)}
+                  placeholder="Project..."
+                  className="text-sm"
+                />
+
+                <SearchableSelect
+                  label="Assignee"
+                  multiple
+                  options={userOptions}
+                  value={row.assignees}
+                  onChange={(val) => updateField(row.id, 'assignees', val)}
+                  placeholder="Assignees..."
+                  className="text-sm"
+                />
+
+                <SearchableSelect
+                  label="Task Owner"
+                  options={userOptions}
+                  value={row.owner}
+                  onChange={(val) => updateField(row.id, 'owner', val)}
+                  placeholder="Owner..."
+                  className="text-sm"
+                />
+
+                <SearchableSelect
+                  label="Category"
+                  options={categoryOptions}
+                  value={row.category}
+                  onChange={(val) => updateField(row.id, 'category', val)}
+                  placeholder="Category..."
+                  className="text-sm"
+                />
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-blue-700 mb-1 block">Notes</label>
+                  <textarea
+                    value={row.notes}
+                    onChange={(e) => updateField(row.id, 'notes', e.target.value)}
+                    rows={2}
+                    placeholder="Notes..."
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <button
+            onClick={addRow}
+            className="w-full py-2.5 px-4 rounded-xl border border-blue-300 bg-white text-blue-700 font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+          >
+            <Plus size={16} />
+            Add Another Row
+          </button>
         </div>
 
         {/* Submit button block - Outside the scrolling div so scrollbar is above it */}
-        <div className="p-8 bg-white flex flex-col items-center gap-6 mt-auto">
+        <div className="p-4 sm:p-6 md:p-8 bg-white flex flex-col items-center gap-4 md:gap-6 mt-auto">
           <button 
             onClick={handleSubmit}
             disabled={isSubmitting || !rows.some(isRowComplete)}
             className={`
-              relative flex items-center justify-center gap-4 px-32 py-5 rounded-2xl font-black text-xl uppercase tracking-[0.2em] transition-all shadow-xl
+              relative w-full md:w-auto flex items-center justify-center gap-4 px-6 md:px-32 py-4 md:py-5 rounded-2xl font-black text-sm md:text-xl uppercase tracking-[0.15em] md:tracking-[0.2em] transition-all shadow-xl
               ${isSubmitting 
                 ? 'bg-blue-400 text-white cursor-wait' 
                 : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-[0.98] shadow-blue-200'

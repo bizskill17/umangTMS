@@ -319,5 +319,3 @@ export const AddMultipleTasksView: React.FC<AddMultipleTasksViewProps> = ({
     </div>
   );
 };
-
-

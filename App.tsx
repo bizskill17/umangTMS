@@ -259,7 +259,6 @@ export default function App() {
     return recurringActions.filter(a => String(a.assignee || '').trim() === currentUser.name);
   }, [recurringActions, currentUser, isAdmin]);
 
-
   const navItemsWithCounts = useMemo(() => {
     const employeeTasks = visibleTasks.filter(t => !t.vendor || t.vendor === '');
     const vendorTasksOnly = visibleTasks.filter(t => t.vendor && t.vendor !== '');
@@ -292,6 +291,7 @@ export default function App() {
         : item
     ));
   }, [filteredNavItems, visibleTasks, visibleActionLogs, visibleRecurringTasks, visibleRecurringActions]);
+
   const [lastAddedCategory, setLastAddedCategory] = useState<string>('');
   const [lastAddedProject, setLastAddedProject] = useState<string>('');
   const [lastAddedVendorCategory, setLastAddedVendorCategory] = useState<string>('');
@@ -955,5 +955,4 @@ export default function App() {
     </div>
   );
 }
-
 

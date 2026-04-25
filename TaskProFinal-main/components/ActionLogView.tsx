@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, FileText, LayoutGrid, LayoutList, Calendar, User, Clock, AlertCircle, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, Trash2, Briefcase, Building2 } from 'lucide-react';
+import { Search, FileText, LayoutGrid, LayoutList, Calendar, User, Clock, AlertCircle, Filter, ArrowUpDown, ArrowUp, ArrowDown, X, Trash2, Briefcase, Building2, Download } from 'lucide-react';
 import { ActionLogEntry, Project } from '../types';
 import { SearchableSelect } from './SearchableSelect';
 import { formatToIndianDate, formatToIndianDateTime, parseToISO } from '../App';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface ActionLogViewProps {
   logs?: ActionLogEntry[];
@@ -172,6 +174,47 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
     return sortedLogs.slice(startIndex, startIndex + itemsPerPage);
   }, [sortedLogs, currentPage]);
 
+  const activeFilterSummary = useMemo(() => {
+    const parts: string[] = [];
+    const cleanSearch = searchTerm.replace(/\s+/g, ' ').trim();
+
+    if (cleanSearch) parts.push(`Search: "${cleanSearch}"`);
+    if (updateDateFrom || updateDateTo) {
+      parts.push(
+        `Update Date: ${updateDateFrom ? formatToIndianDate(updateDateFrom) : 'start'} to ${updateDateTo ? formatToIndianDate(updateDateTo) : 'end'}`
+      );
+    }
+    if (taskDateFrom || taskDateTo) {
+      parts.push(
+        `Task Date: ${taskDateFrom ? formatToIndianDate(taskDateFrom) : 'start'} to ${taskDateTo ? formatToIndianDate(taskDateTo) : 'end'}`
+      );
+    }
+    if (filterStatus.length > 0) parts.push(`Status: ${filterStatus.join(', ')}`);
+    if (filterOwner.length > 0) parts.push(`Owner: ${filterOwner.join(', ')}`);
+    if (filterProject.length > 0) parts.push(`Project: ${filterProject.length} selected`);
+    if (filterClient.length > 0) parts.push(`Client: ${filterClient.length} selected`);
+    if (isVendorView) {
+      if (filterVendor.length > 0) parts.push(`Vendor: ${filterVendor.join(', ')}`);
+    } else {
+      if (filterAssignee.length > 0) parts.push(`Assignee: ${filterAssignee.join(', ')}`);
+    }
+
+    return parts.length > 0 ? parts.join(' | ') : 'No filters applied';
+  }, [
+    searchTerm,
+    updateDateFrom,
+    updateDateTo,
+    taskDateFrom,
+    taskDateTo,
+    filterStatus,
+    filterOwner,
+    filterProject,
+    filterClient,
+    filterVendor,
+    filterAssignee,
+    isVendorView
+  ]);
+
   const handleExportExcel = () => {
     const headers = ['Task', 'Task Date', 'Update Date', 'Status', 'Minutes', 'Remarks', 'Owner', 'Project', 'Client'];
     if (isVendorView) headers.push('Vendor');
@@ -202,6 +245,80 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
     link.href = URL.createObjectURL(blob);
     link.setAttribute('download', `${isVendorView ? 'Vendor_' : ''}Action_Log_Export_${new Date().toISOString().split('T')[0]}.csv`);
     link.click();
+  };
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF('l', 'mm', 'a4');
+    const exportDate = new Date().toISOString().split('T')[0];
+    const title = isVendorView ? 'Vendor Action Log' : 'Task Action Log';
+    const oneLineFilterText = `Filters: ${activeFilterSummary}`;
+    const pdfFilterText = oneLineFilterText.length > 180 ? `${oneLineFilterText.slice(0, 177)}...` : oneLineFilterText;
+
+    doc.setFontSize(16);
+    doc.setTextColor(30, 64, 175);
+    doc.text(title, 14, 14);
+
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Generated on: ${new Date().toLocaleString('en-GB')}`, 14, 20);
+    doc.text(`Total entries: ${sortedLogs.length}`, 14, 25);
+    doc.text(pdfFilterText, 14, 30);
+
+    const headers = [
+      'S.No',
+      'Task',
+      'Task Date',
+      'Update Date',
+      'Status',
+      'Minutes',
+      'Remarks',
+      'Owner',
+      'Project',
+      'Client',
+      isVendorView ? 'Vendor' : 'Assignee'
+    ];
+
+    const rows = sortedLogs.map((log, index) => [
+      index + 1,
+      log.task || '-',
+      formatToIndianDate(log.taskDate),
+      formatToIndianDate(log.updateDate),
+      log.status || '-',
+      log.hours || 0,
+      log.remarks || '-',
+      log.owner || '-',
+      String(log.project || '').split(' (')[0] || '-',
+      log.clientName || '-',
+      isVendorView ? (log.vendor || '-') : (log.assignees || '-')
+    ]);
+
+    autoTable(doc, {
+      head: [headers],
+      body: rows,
+      startY: 35,
+      theme: 'grid',
+      styles: {
+        fontSize: 7,
+        cellPadding: 2,
+        overflow: 'linebreak',
+        textColor: [0, 0, 0],
+        lineColor: [0, 0, 0],
+        lineWidth: 0.1
+      },
+      headStyles: {
+        fillColor: [37, 99, 235],
+        textColor: [255, 255, 255]
+      },
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 48 },
+        6: { cellWidth: 45 },
+        9: { cellWidth: 30 },
+        10: { cellWidth: 30 }
+      }
+    });
+
+    doc.save(`${isVendorView ? 'Vendor_' : ''}Action_Log_Export_${exportDate}.pdf`);
   };
 
   const handleClearFilters = () => {
@@ -244,6 +361,10 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
               <FileText size={16} />
               <span>Export Excel</span>
             </button>
+            <button onClick={handleExportPDF} className="flex-1 md:flex-none flex items-center justify-center space-x-2 px-4 py-2 bg-white text-blue-700 border-2 border-blue-700 rounded-md hover:bg-blue-50 text-xs font-black uppercase tracking-widest shadow-sm transition-colors">
+              <Download size={16} />
+              <span>Export PDF</span>
+            </button>
             <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center space-x-1 px-3 py-2 border-2 rounded-md text-xs font-black shadow-sm transition-all duration-200 uppercase tracking-widest ${showFilters ? 'bg-blue-600 border-blue-700 text-white' : 'bg-blue-50 border-blue-300 text-blue-600 hover:bg-blue-100'}`} title="Toggle Filters">
               <Filter size={16} />
             </button>
@@ -260,6 +381,11 @@ export const ActionLogView: React.FC<ActionLogViewProps> = ({
             value={searchTerm} 
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+        </div>
+        <div className="w-full px-3 py-2 rounded-md border border-blue-200 bg-blue-50">
+          <p className="text-[10px] sm:text-[11px] font-black text-blue-700 tracking-wider whitespace-nowrap overflow-x-auto custom-scrollbar">
+            FILTERS: <span className="font-semibold normal-case tracking-normal text-blue-900">{activeFilterSummary}</span>
+          </p>
         </div>
         <div className={`${showFilters ? 'grid' : 'hidden'} grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end animate-in fade-in slide-in-from-top-2 duration-200`}>
               <div className="space-y-1">

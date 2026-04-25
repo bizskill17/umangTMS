@@ -185,4 +185,3 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ clients, projects, onA
     </div>
   );
 };
-

@@ -184,4 +184,3 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ projects, clients, o
     </div>
   );
 };
-

@@ -76,7 +76,7 @@ export const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({ isOpen, onCl
       head: [tableColumn],
       body: tableRows,
       startY: 45, 
-      styles: { fontSize: 8, cellPadding: 3 },
+      styles: { fontSize: 8, cellPadding: 3, textColor: [0, 0, 0] },
       headStyles: { fillColor: [59, 130, 246] },
     });
 

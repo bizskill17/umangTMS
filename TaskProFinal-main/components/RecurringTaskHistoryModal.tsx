@@ -40,7 +40,7 @@ export const RecurringTaskHistoryModal: React.FC<RecurringTaskHistoryModalProps>
     doc.setFontSize(18);
     doc.text('Recurring Task History', 14, 20);
     doc.setFontSize(11);
-    doc.setTextColor(100);
+    doc.setTextColor(0, 0, 0);
     doc.text(`Task: ${task.title}`, 14, 28);
     doc.text(`Assignee: ${task.assignee}`, 14, 34);
 
@@ -57,7 +57,7 @@ export const RecurringTaskHistoryModal: React.FC<RecurringTaskHistoryModalProps>
       body: tableRows,
       startY: 42,
       headStyles: { fillColor: [79, 70, 229] },
-      styles: { fontSize: 9 }
+      styles: { fontSize: 9, textColor: [0, 0, 0] }
     });
 
     doc.save(`History_${task.id}_${new Date().getTime()}.pdf`);

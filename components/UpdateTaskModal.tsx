@@ -58,7 +58,7 @@ export const UpdateTaskModal: React.FC<UpdateTaskModalProps> = ({ isOpen, onClos
     e.preventDefault();
     
     // Validate first
-    if ((formData.status === 'In Progress' || formData.status === 'Pending for Client' || formData.status === 'Pending for Owner' || formData.status === 'Pending for Training' || formData.status === 'Pending for Billing' || formData.status === 'Pending for Payment') && (!remarksInput || remarksInput.trim() === '')) {
+    if ((formData.status === 'In Progress' || formData.status === 'Pending for Client' || formData.status === 'Pending for Owner') && (!remarksInput || remarksInput.trim() === '')) {
       setError('Remarks are required for this status change');
       return;
     }
@@ -146,9 +146,6 @@ export const UpdateTaskModal: React.FC<UpdateTaskModalProps> = ({ isOpen, onClos
                       <option value="In Progress">In Progress</option>
                       <option value="Pending for Client">Pending for Client</option>
                       <option value="Pending for Owner">Pending for Owner</option>
-                      <option value="Pending for Training">Pending for Training</option>
-                      <option value="Pending for Billing">Pending for Billing</option>
-                      <option value="Pending for Payment">Pending for Payment</option>
                       <option value="Completed">Completed</option>
                     </select>
                 </div>
@@ -182,7 +179,7 @@ export const UpdateTaskModal: React.FC<UpdateTaskModalProps> = ({ isOpen, onClos
                 ></textarea>
               </div>
 
-              {(formData.status === 'In Progress' || formData.status === 'Pending for Client' || formData.status === 'Pending for Owner' || formData.status === 'Pending for Training' || formData.status === 'Pending for Billing' || formData.status === 'Pending for Payment') && (
+              {(formData.status === 'In Progress' || formData.status === 'Pending for Client' || formData.status === 'Pending for Owner') && (
                 <div className="space-y-1">
                   <SearchableSelect 
                       label={isVendorTask ? "Reassign Vendor" : "Reassign User"}

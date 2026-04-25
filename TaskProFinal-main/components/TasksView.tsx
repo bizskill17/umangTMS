@@ -270,46 +270,74 @@ export const TasksView: React.FC<TasksViewProps> = ({
     doc.text(`${title} Report`, 14, 15);
     
     doc.setFontSize(10);
-    doc.setTextColor(50, 50, 50);
+    doc.setTextColor(0, 0, 0);
     doc.text(`Generated on: ${new Date().toLocaleString('en-GB')}`, 14, 21);
     
     doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
+    doc.setTextColor(0, 0, 0);
     const filterSummary = getFilterSummary();
     const splitFilters = doc.splitTextToSize(`Active Filters: ${filterSummary}`, 260);
     doc.text(splitFilters, 14, 27);
 
-    const headers = [['S.No', 'Date', 'Task', 'Notes', 'Project', 'Client', 'Responsible', 'Status', 'Last Update Date', 'Last Update Remark', 'Due Date']];
-    
+    const hasAnyNotes = finalSortedTasks.some(t => String(t.remarks || '').trim() !== '');
+    const headers = [[
+      'S.No',
+      'Date',
+      'Task',
+      ...(hasAnyNotes ? ['Notes'] : []),
+      'Project',
+      'Client',
+      'Responsible',
+      'Status',
+      'P',
+      'Last Update Date',
+      'Last Update Remark',
+      'Due Date',
+      'Min'
+    ]];
+
     const data = finalSortedTasks.map((t, i) => {
       const isNotStarted = t.status === 'Not Yet Started';
-      return [
+      const row: (string | number)[] = [
         i + 1,
         formatToIndianDate(t.date),
-        t.title,
-        t.remarks || '-',
+        t.title
+      ];
+      if (hasAnyNotes) row.push(t.remarks || '-');
+      row.push(
         t.project.split(' (')[0],
         t.clientName || '-',
         isVendorView ? (t.vendor || '-') : (t.assignees || '-'),
         t.status,
+        String(t.priority || '-').trim() ? String(t.priority || '-').trim().charAt(0).toUpperCase() : '-',
         isNotStarted ? '' : formatToIndianDate(t.lastUpdateDate || ''),
         isNotStarted ? '' : (t.lastUpdateRemarks || ''),
-        formatToIndianDate(t.dueDate)
-      ];
+        formatToIndianDate(t.dueDate),
+        t.hours || 0
+      );
+      return row;
     });
+
+    const columnStyles: any = {
+      2: { cellWidth: 35 },
+      [hasAnyNotes ? 5 : 4]: { cellWidth: 25 },
+      [hasAnyNotes ? 10 : 9]: { cellWidth: 35 },
+      [hasAnyNotes ? 12 : 11]: { cellWidth: 12, halign: 'center' }
+    };
+    if (hasAnyNotes) {
+      columnStyles[3] = { cellWidth: 35 };
+    }
 
     autoTable(doc, {
       head: headers,
       body: data,
+      theme: 'grid',
       startY: 32 + (splitFilters.length * 4),
-      styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
-      headStyles: { fillColor: [79, 70, 229] },
-      columnStyles: {
-        2: { cellWidth: 35 }, 
-        3: { cellWidth: 35 },
-        5: { cellWidth: 25 },
-        9: { cellWidth: 35 }  
-      }
+      styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak', textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+      headStyles: { fillColor: [79, 70, 229], lineColor: [0, 0, 0], lineWidth: 0.1 },
+      tableLineColor: [0, 0, 0],
+      tableLineWidth: 0.1,
+      columnStyles
     });
 
     doc.save(`${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);

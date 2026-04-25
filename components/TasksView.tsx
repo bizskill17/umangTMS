@@ -143,31 +143,84 @@ export const TasksView: React.FC<TasksViewProps> = ({
     return active.length > 0 ? active.join(' | ') : 'None';
   };
 
-  const matchesFilter = (task: Task, filterKey: string, values: string[]) => {
-    if (!values || values.length === 0) return true;
-    switch(filterKey) {
-        case 'status': 
-          if (values.includes('Overdue')) {
-              if (values.length === 1) {
-                  if (task.status === 'Completed' || !task.dueDate) return false;
-                  const dueISO = parseToISO(task.dueDate);
-                  const todayISO = new Date().toISOString().split('T')[0];
-                  return dueISO && dueISO < todayISO;
-              }
-              const isOverdue = task.status !== 'Completed' && task.dueDate && parseToISO(task.dueDate) < new Date().toISOString().split('T')[0];
-              return values.includes(task.status) || isOverdue;
-          }
-          return values.includes(task.status);
-        case 'priority': return values.includes(task.priority);
-        case 'project': return values.includes(task.project);
-        case 'category': return values.includes(task.category || '');
-        case 'client': return values.includes(task.clientName || '');
-        case 'owner': return values.some(v => String(task.owner || '').includes(v));
-        case 'assignee': return values.some(v => String(task.assignees || '').includes(v));
-        case 'vendor': return values.includes(task.vendor || '');
-        default: return true;
+  const normalize = (val: unknown) => String(val || '').trim();
+  const splitCommaValues = (val: unknown) => normalize(val).split(',').map(s => s.trim()).filter(Boolean);
+
+  const getProjectInfoFromValue = (projectValue: unknown) => {
+    const raw = normalize(projectValue);
+    if (!raw) return { name: '', client: '', display: '' };
+
+    const match = raw.match(/^(.*?)\s*\((.*?)\)\s*$/);
+    if (match) {
+      const name = normalize(match[1]);
+      const client = normalize(match[2]);
+      const display = client ? `${name} (${client})` : name;
+      return { name, client, display };
     }
+
+    const found = projects.find(p => {
+      const name = normalize(p.name);
+      const client = normalize(p.client);
+      const combined = client ? `${name} (${client})` : name;
+      return raw === name || raw === combined;
+    });
+
+    if (found) {
+      const name = normalize(found.name);
+      const client = normalize(found.client);
+      const display = client ? `${name} (${client})` : name;
+      return { name, client, display };
+    }
+
+    return { name: raw, client: '', display: raw };
   };
+
+  const getClientFromTask = (task: Task) => {
+    const direct = normalize(task.clientName);
+    if (direct) return direct;
+    const info = getProjectInfoFromValue(task.project);
+    return info.client;
+  };
+
+  const matchesFilter = (task: Task, filterKey: string, values: string[]) => {
+	    if (!values || values.length === 0) return true;
+	    switch(filterKey) {
+	        case 'status': 
+	          if (values.includes('Overdue')) {
+	              if (values.length === 1) {
+	                  if (task.status === 'Completed' || !task.dueDate) return false;
+	                  const dueISO = parseToISO(task.dueDate);
+	                  const todayISO = new Date().toISOString().split('T')[0];
+	                  return dueISO && dueISO < todayISO;
+	              }
+	              const isOverdue = task.status !== 'Completed' && task.dueDate && parseToISO(task.dueDate) < new Date().toISOString().split('T')[0];
+	              return values.includes(task.status) || isOverdue;
+	          }
+	          return values.includes(task.status);
+	        case 'priority': return values.includes(task.priority);
+	        case 'project': {
+	          const rawProject = normalize(task.project);
+	          if (!rawProject) return false;
+
+	          const info = getProjectInfoFromValue(rawProject);
+	          const possible = new Set<string>([rawProject, info.name, info.display]);
+
+	          const parsedRaw = rawProject.match(/^(.*?)\s*\((.*?)\)\s*$/);
+	          if (parsedRaw) possible.add(normalize(parsedRaw[1]));
+
+	          const parsedDisplay = info.display.match(/^(.*?)\s*\((.*?)\)\s*$/);
+	          if (parsedDisplay) possible.add(normalize(parsedDisplay[1]));
+
+	          return values.some(v => possible.has(normalize(v)));
+	        }
+	        case 'category': return values.includes(task.category || '');
+	        case 'client': return values.includes(getClientFromTask(task));
+	        case 'owner': return values.some(v => String(task.owner || '').includes(v));
+	        case 'assignee': return values.some(v => String(task.assignees || '').includes(v));
+	        case 'vendor': return values.includes(task.vendor || '');
+	        default: return true;
+	    }
+	  };
 
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
@@ -197,7 +250,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
       const taskISO = parseToISO(task.date);
       if (dateFrom && taskISO < dateFrom) return false;
-      if (dateTo && taskISO > taskISO) return false;
+	      if (dateTo && taskISO > dateTo) return false;
 
       const updateISO = parseToISO(task.lastUpdateDate || '');
       if (lastUpdateFrom && (!updateISO || updateISO < lastUpdateFrom)) return false;
@@ -270,79 +323,233 @@ export const TasksView: React.FC<TasksViewProps> = ({
     doc.text(`${title} Report`, 14, 15);
     
     doc.setFontSize(10);
-    doc.setTextColor(50, 50, 50);
+    doc.setTextColor(0, 0, 0);
     doc.text(`Generated on: ${new Date().toLocaleString('en-GB')}`, 14, 21);
     
     doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
+    doc.setTextColor(0, 0, 0);
     const filterSummary = getFilterSummary();
     const splitFilters = doc.splitTextToSize(`Active Filters: ${filterSummary}`, 260);
     doc.text(splitFilters, 14, 27);
 
-    const headers = [['S.No', 'Date', 'Task', 'Notes', 'Project', 'Client', 'Responsible', 'Status', 'Last Update Date', 'Last Update Remark', 'Due Date']];
-    
+    const hasAnyNotes = finalSortedTasks.some(t => String(t.remarks || '').trim() !== '');
+    const headers = [[
+      'S.No',
+      'Date',
+      'Task',
+      ...(hasAnyNotes ? ['Notes'] : []),
+      'Project',
+      'Client',
+      'Responsible',
+      'Status',
+      'P',
+      'Last Update Date',
+      'Last Update Remark',
+      'Due Date',
+      'Min'
+    ]];
+
     const data = finalSortedTasks.map((t, i) => {
       const isNotStarted = t.status === 'Not Yet Started';
-      return [
+      const row: (string | number)[] = [
         i + 1,
         formatToIndianDate(t.date),
-        t.title,
-        t.remarks || '-',
+        t.title
+      ];
+      if (hasAnyNotes) row.push(t.remarks || '-');
+      row.push(
         t.project.split(' (')[0],
         t.clientName || '-',
         isVendorView ? (t.vendor || '-') : (t.assignees || '-'),
         t.status,
+        String(t.priority || '-').trim() ? String(t.priority || '-').trim().charAt(0).toUpperCase() : '-',
         isNotStarted ? '' : formatToIndianDate(t.lastUpdateDate || ''),
         isNotStarted ? '' : (t.lastUpdateRemarks || ''),
-        formatToIndianDate(t.dueDate)
-      ];
+        formatToIndianDate(t.dueDate),
+        t.hours || 0
+      );
+      return row;
     });
+
+    const columnStyles: any = {
+      2: { cellWidth: 35 },
+      [hasAnyNotes ? 5 : 4]: { cellWidth: 25 },
+      [hasAnyNotes ? 10 : 9]: { cellWidth: 35 },
+      [hasAnyNotes ? 12 : 11]: { cellWidth: 12, halign: 'center' }
+    };
+    if (hasAnyNotes) {
+      columnStyles[3] = { cellWidth: 35 };
+    }
 
     autoTable(doc, {
       head: headers,
       body: data,
+      theme: 'grid',
       startY: 32 + (splitFilters.length * 4),
-      styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
-      headStyles: { fillColor: [79, 70, 229] },
-      columnStyles: {
-        2: { cellWidth: 35 }, 
-        3: { cellWidth: 35 },
-        5: { cellWidth: 25 },
-        9: { cellWidth: 35 }  
-      }
+      styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak', textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+      headStyles: { fillColor: [79, 70, 229], lineColor: [0, 0, 0], lineWidth: 0.1 },
+      tableLineColor: [0, 0, 0],
+      tableLineWidth: 0.1,
+      columnStyles
     });
 
     doc.save(`${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
-  const statusOptions = [
-    { value: 'Not Yet Started', label: 'Not Yet Started' },
-    { value: 'In Progress', label: 'In Progress' },
-    { value: 'Pending for Client', label: 'Pending for Client' },
-    { value: 'Pending for Owner', label: 'Pending for Owner' },
-    { value: 'Pending for Training', label: 'Pending for Training' },
-    { value: 'Pending for Billing', label: 'Pending for Billing' },
-    { value: 'Pending for Payment', label: 'Pending for Payment' },
-    { value: 'Completed', label: 'Completed' },
-    { value: 'Overdue', label: 'Overdue' }
-  ];
-  const priorityOptions = [
-    { value: 'High', label: 'High' },
-    { value: 'Medium', label: 'Medium' },
-    { value: 'Low', label: 'Low' }
-  ];
-  const categoryOptions = useMemo(() => categories.map(c => ({ value: c.name, label: c.name })), [categories]);
-  const projectOptions = useMemo(() => projects.map(p => {
-      const val = `${p.name.trim()} (${p.client.trim()})`;
-      return { value: val, label: val };
-  }), [projects]);
-  const clientOptions = useMemo(() => {
-      const unique = Array.from(new Set(projects.map(p => p.client.trim()))).filter(Boolean);
-      return (unique as string[]).map(c => ({ value: c, label: c }));
-  }, [projects]);
-  const ownerOptions = useMemo(() => users.filter(u => u.isActive).map(u => ({ value: u.name, label: u.name })), [users]);
-  const assigneeOptions = useMemo(() => users.filter(u => u.isActive).map(u => ({ value: u.name, label: u.name })), [users]);
-  const vendorOptions = useMemo(() => vendors.map(v => ({ value: v.name, label: v.name })), [vendors]);
+	  const statusOptionsAll = [
+	    { value: 'Not Yet Started', label: 'Not Yet Started' },
+	    { value: 'In Progress', label: 'In Progress' },
+	    { value: 'Pending for Client', label: 'Pending for Client' },
+	    { value: 'Pending for Owner', label: 'Pending for Owner' },
+	    { value: 'Completed', label: 'Completed' },
+	    { value: 'Overdue', label: 'Overdue' }
+	  ];
+	  const priorityOptionsAll = [
+	    { value: 'High', label: 'High' },
+	    { value: 'Medium', label: 'Medium' },
+	    { value: 'Low', label: 'Low' }
+	  ];
+
+	  const doesTaskMatchAllFilters = (task: Task, excludeKey?: string) => {
+	    const effectiveStatus = excludeKey === 'status' ? [] : filterStatus;
+	    const effectivePriority = excludeKey === 'priority' ? [] : filterPriority;
+	    const effectiveProject = excludeKey === 'project' ? [] : filterProject;
+	    const effectiveCategory = excludeKey === 'category' ? [] : filterCategory;
+	    const effectiveClient = excludeKey === 'client' ? [] : filterClient;
+	    const effectiveOwner = excludeKey === 'owner' ? [] : filterOwner;
+	    const effectiveAssignee = excludeKey === 'assignee' ? [] : filterAssignee;
+	    const effectiveVendor = excludeKey === 'vendor' ? [] : filterVendor;
+
+	    if (filterType === 'pending') {
+	      const project = projects.find(p => p.name === task.project || `${p.name} (${p.client})` === task.project);
+	      if (project && project.status === 'Inactive') return false;
+	      if (task.status === 'Completed' && effectiveStatus.length === 0) return false;
+	    }
+	    if (filterType === 'completed' && task.status !== 'Completed') return false;
+
+	    if (searchTerm) {
+	      const lowerTerm = searchTerm.toLowerCase();
+	      const matchesSearch = Object.values(task).some(val => String(val || '').toLowerCase().includes(lowerTerm));
+	      if (!matchesSearch) return false;
+	    }
+
+	    if (!matchesFilter(task, 'status', effectiveStatus)) return false;
+	    if (!matchesFilter(task, 'priority', effectivePriority)) return false;
+	    if (!matchesFilter(task, 'project', effectiveProject)) return false;
+	    if (!matchesFilter(task, 'category', effectiveCategory)) return false;
+	    if (!matchesFilter(task, 'client', effectiveClient)) return false;
+	    if (!matchesFilter(task, 'owner', effectiveOwner)) return false;
+	    if (!matchesFilter(task, 'assignee', effectiveAssignee)) return false;
+	    if (isVendorView && effectiveVendor && !matchesFilter(task, 'vendor', effectiveVendor)) return false;
+
+	    const taskISO = parseToISO(task.date);
+	    if (dateFrom && taskISO < dateFrom) return false;
+	    if (dateTo && taskISO > dateTo) return false;
+
+	    const updateISO = parseToISO(task.lastUpdateDate || '');
+	    if (lastUpdateFrom && (!updateISO || updateISO < lastUpdateFrom)) return false;
+	    if (lastUpdateTo && (!updateISO || updateISO > lastUpdateTo)) return false;
+
+	    return true;
+	  };
+
+	  const baseActiveUsers = useMemo(() => {
+	    return users.filter(u => u.isActive).map(u => ({ value: normalize(u.name), label: normalize(u.name) })).filter(o => o.value !== '');
+	  }, [users]);
+
+	  const baseCategoryOptions = useMemo(() => {
+	    return categories.map(c => ({ value: normalize(c.name), label: normalize(c.name) })).filter(o => o.value !== '');
+	  }, [categories]);
+
+	  const baseProjectOptions = useMemo(() => {
+	    return projects.map(p => {
+	      const name = normalize(p.name);
+	      const client = normalize(p.client);
+	      const val = client ? `${name} (${client})` : name;
+	      return { value: val, label: val };
+	    }).filter(o => o.value !== '');
+	  }, [projects]);
+
+	  const baseClientOptions = useMemo(() => {
+	    const unique = Array.from(new Set(projects.map(p => normalize(p.client)))).filter(Boolean);
+	    return unique.map(c => ({ value: c, label: c }));
+	  }, [projects]);
+
+	  const baseVendorOptions = useMemo(() => {
+	    return vendors.map(v => ({ value: normalize(v.name), label: normalize(v.name) })).filter(o => o.value !== '');
+	  }, [vendors]);
+
+	  const tasksForStatusOptions = useMemo(() => tasks.filter(t => doesTaskMatchAllFilters(t, 'status')), [tasks, projects, filterType, searchTerm, filterPriority, filterProject, filterCategory, filterClient, filterOwner, filterAssignee, filterVendor, dateFrom, dateTo, lastUpdateFrom, lastUpdateTo, isVendorView]);
+	  const statusOptions = useMemo(() => {
+	    if (tasksForStatusOptions.length === 0) return statusOptionsAll;
+	    const present = new Set(tasksForStatusOptions.map(t => t.status));
+	    const todayISO = new Date().toISOString().split('T')[0];
+	    const hasOverdue = tasksForStatusOptions.some(t => {
+	      if (t.status === 'Completed' || !t.dueDate) return false;
+	      const dueISO = parseToISO(t.dueDate);
+	      return !!dueISO && dueISO < todayISO;
+	    });
+	    return statusOptionsAll.filter(o => (o.value === 'Overdue' ? hasOverdue : present.has(o.value as any)));
+	  }, [tasksForStatusOptions]);
+
+	  const tasksForPriorityOptions = useMemo(() => tasks.filter(t => doesTaskMatchAllFilters(t, 'priority')), [tasks, projects, filterType, searchTerm, filterStatus, filterProject, filterCategory, filterClient, filterOwner, filterAssignee, filterVendor, dateFrom, dateTo, lastUpdateFrom, lastUpdateTo, isVendorView]);
+	  const priorityOptions = useMemo(() => {
+	    if (tasksForPriorityOptions.length === 0) return priorityOptionsAll;
+	    const present = new Set(tasksForPriorityOptions.map(t => t.priority));
+	    return priorityOptionsAll.filter(o => present.has(o.value as any));
+	  }, [tasksForPriorityOptions]);
+
+	  const tasksForCategoryOptions = useMemo(() => tasks.filter(t => doesTaskMatchAllFilters(t, 'category')), [tasks, projects, filterType, searchTerm, filterStatus, filterPriority, filterProject, filterClient, filterOwner, filterAssignee, filterVendor, dateFrom, dateTo, lastUpdateFrom, lastUpdateTo, isVendorView]);
+	  const categoryOptions = useMemo(() => {
+	    if (tasksForCategoryOptions.length === 0) return baseCategoryOptions;
+	    const allowed = new Set(tasksForCategoryOptions.map(t => normalize(t.category)).filter(Boolean));
+	    const fromBase = baseCategoryOptions.filter(o => allowed.has(o.value));
+	    const extras = Array.from(allowed).filter(v => !fromBase.some(o => o.value === v)).map(v => ({ value: v, label: v }));
+	    return [...fromBase, ...extras];
+	  }, [tasksForCategoryOptions, baseCategoryOptions]);
+
+	  const tasksForProjectOptions = useMemo(() => tasks.filter(t => doesTaskMatchAllFilters(t, 'project')), [tasks, projects, filterType, searchTerm, filterStatus, filterPriority, filterCategory, filterClient, filterOwner, filterAssignee, filterVendor, dateFrom, dateTo, lastUpdateFrom, lastUpdateTo, isVendorView]);
+	  const projectOptions = useMemo(() => {
+	    if (tasksForProjectOptions.length === 0) return baseProjectOptions;
+	    const allowed = new Set(tasksForProjectOptions.map(t => normalize(getProjectInfoFromValue(t.project).display)).filter(Boolean));
+	    const fromBase = baseProjectOptions.filter(o => allowed.has(o.value));
+	    const extras = Array.from(allowed).filter(v => !fromBase.some(o => o.value === v)).map(v => ({ value: v, label: v }));
+	    return [...fromBase, ...extras];
+	  }, [tasksForProjectOptions, baseProjectOptions]);
+
+	  const tasksForClientOptions = useMemo(() => tasks.filter(t => doesTaskMatchAllFilters(t, 'client')), [tasks, projects, filterType, searchTerm, filterStatus, filterPriority, filterProject, filterCategory, filterOwner, filterAssignee, filterVendor, dateFrom, dateTo, lastUpdateFrom, lastUpdateTo, isVendorView]);
+	  const clientOptions = useMemo(() => {
+	    if (tasksForClientOptions.length === 0) return baseClientOptions;
+	    const allowed = new Set(tasksForClientOptions.map(t => normalize(getClientFromTask(t))).filter(Boolean));
+	    return Array.from(allowed).map(c => ({ value: c, label: c }));
+	  }, [tasksForClientOptions, baseClientOptions]);
+
+	  const tasksForOwnerOptions = useMemo(() => tasks.filter(t => doesTaskMatchAllFilters(t, 'owner')), [tasks, projects, filterType, searchTerm, filterStatus, filterPriority, filterProject, filterCategory, filterClient, filterAssignee, filterVendor, dateFrom, dateTo, lastUpdateFrom, lastUpdateTo, isVendorView]);
+	  const ownerOptions = useMemo(() => {
+	    if (tasksForOwnerOptions.length === 0) return baseActiveUsers;
+	    const allowed = new Set(tasksForOwnerOptions.flatMap(t => splitCommaValues(t.owner)).map(normalize).filter(Boolean));
+	    const fromBase = baseActiveUsers.filter(o => allowed.has(o.value));
+	    const extras = Array.from(allowed).filter(v => !fromBase.some(o => o.value === v)).map(v => ({ value: v, label: v }));
+	    return [...fromBase, ...extras];
+	  }, [tasksForOwnerOptions, baseActiveUsers]);
+
+	  const tasksForAssigneeOptions = useMemo(() => tasks.filter(t => doesTaskMatchAllFilters(t, 'assignee')), [tasks, projects, filterType, searchTerm, filterStatus, filterPriority, filterProject, filterCategory, filterClient, filterOwner, filterVendor, dateFrom, dateTo, lastUpdateFrom, lastUpdateTo, isVendorView]);
+	  const assigneeOptions = useMemo(() => {
+	    if (tasksForAssigneeOptions.length === 0) return baseActiveUsers;
+	    const allowed = new Set(tasksForAssigneeOptions.flatMap(t => splitCommaValues(t.assignees)).map(normalize).filter(Boolean));
+	    const fromBase = baseActiveUsers.filter(o => allowed.has(o.value));
+	    const extras = Array.from(allowed).filter(v => !fromBase.some(o => o.value === v)).map(v => ({ value: v, label: v }));
+	    return [...fromBase, ...extras];
+	  }, [tasksForAssigneeOptions, baseActiveUsers]);
+
+	  const tasksForVendorOptions = useMemo(() => tasks.filter(t => doesTaskMatchAllFilters(t, 'vendor')), [tasks, projects, filterType, searchTerm, filterStatus, filterPriority, filterProject, filterCategory, filterClient, filterOwner, filterAssignee, dateFrom, dateTo, lastUpdateFrom, lastUpdateTo, isVendorView]);
+	  const vendorOptions = useMemo(() => {
+	    if (tasksForVendorOptions.length === 0) return baseVendorOptions;
+	    const allowed = new Set(tasksForVendorOptions.map(t => normalize(t.vendor)).filter(Boolean));
+	    const fromBase = baseVendorOptions.filter(o => allowed.has(o.value));
+	    const extras = Array.from(allowed).filter(v => !fromBase.some(o => o.value === v)).map(v => ({ value: v, label: v }));
+	    return [...fromBase, ...extras];
+	  }, [tasksForVendorOptions, baseVendorOptions]);
 
   const totalPages = Math.ceil(filteredTasks.length / itemsPerPage);
   const handleUpdateTaskClick = (task: Task) => { setSelectedTask(task); setIsUpdateModalOpen(true); };

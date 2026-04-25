@@ -292,9 +292,9 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                 </div>
 
                 {isExpanded && task.lastUpdateRemarks && task.lastUpdateRemarks.trim() !== '' && (
-                  <div className="flex items-start gap-2 bg-blue-50 p-2 rounded-lg text-blue-700 border border-blue-100 mt-2">
+                  <div className="flex items-start gap-2 bg-blue-50 p-2 rounded-lg text-blue-700 border border-blue-100 mt-2 min-w-0 overflow-hidden">
                       <Info size={14} className="mt-0.5 shrink-0 opacity-70" />
-                      <p className="text-xs italic leading-relaxed whitespace-normal break-words">{task.lastUpdateRemarks}</p>
+                      <p className="text-xs italic leading-relaxed whitespace-normal break-all">{task.lastUpdateRemarks}</p>
                   </div>
                 )}
               </div>
