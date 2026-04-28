@@ -22,6 +22,8 @@ interface AddMultipleTasksViewProps {
   categories: Category[];
   onSaveTasks: (tasks: any[]) => Promise<void>;
   currentUser?: User | null;
+  onOpenAddProject?: (initialName: string) => void;
+  onOpenAddCategory?: (initialName: string) => void;
 }
 
 export const AddMultipleTasksView: React.FC<AddMultipleTasksViewProps> = ({ 
@@ -29,7 +31,9 @@ export const AddMultipleTasksView: React.FC<AddMultipleTasksViewProps> = ({
   users, 
   categories, 
   onSaveTasks,
-  currentUser
+  currentUser,
+  onOpenAddProject,
+  onOpenAddCategory
 }) => {
   const [rows, setRows] = useState<AddRow[]>([
     { id: '1', title: '', priority: 'Medium', project: '', assignees: [], owner: currentUser?.name || 'PANKAJ KUMAR JAIN', category: '', dueDate: '', notes: '' }
@@ -37,7 +41,6 @@ export const AddMultipleTasksView: React.FC<AddMultipleTasksViewProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
-
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
     task: 250,
     priority: 110,
@@ -213,15 +216,21 @@ export const AddMultipleTasksView: React.FC<AddMultipleTasksViewProps> = ({
                         <option value="Low">Low</option>
                       </select>
                     </td>
-                    <td className={tdClass}>
-                      <SearchableSelect
-                        options={projectOptions}
-                        value={row.project}
-                        onChange={(val) => updateField(row.id, 'project', val)}
-                        placeholder="Project..."
-                        className="!min-h-0 text-[10px]"
-                      />
-                    </td>
+	                    <td className={tdClass}>
+	                      <SearchableSelect
+	                        options={projectOptions}
+	                        value={row.project}
+	                        onChange={(val) => updateField(row.id, 'project', val)}
+	                        placeholder="Project..."
+	                        className="!min-h-0 text-[10px]"
+	                        allowCreate
+	                        onCreateOption={(v) => {
+	                          onOpenAddProject?.(v);
+	                          return false;
+	                        }}
+	                        createLabel={(v) => `Add Project "${v}"`}
+	                      />
+	                    </td>
                     <td className={tdClass}>
                       <SearchableSelect
                         multiple
@@ -241,15 +250,21 @@ export const AddMultipleTasksView: React.FC<AddMultipleTasksViewProps> = ({
                         className="!min-h-0 text-[10px]"
                       />
                     </td>
-                    <td className={tdClass}>
-                      <SearchableSelect
-                        options={categoryOptions}
-                        value={row.category}
-                        onChange={(val) => updateField(row.id, 'category', val)}
-                        placeholder="Category..."
-                        className="!min-h-0 text-[10px]"
-                      />
-                    </td>
+	                    <td className={tdClass}>
+	                      <SearchableSelect
+	                        options={categoryOptions}
+	                        value={row.category}
+	                        onChange={(val) => updateField(row.id, 'category', val)}
+	                        placeholder="Category..."
+	                        className="!min-h-0 text-[10px]"
+	                        allowCreate
+	                        onCreateOption={(v) => {
+	                          onOpenAddCategory?.(v);
+	                          return false;
+	                        }}
+	                        createLabel={(v) => `Add Category "${v}"`}
+	                      />
+	                    </td>
                     <td className={tdClass}>
                       <input
                         type="date"

@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { NavItem } from '../types';
 import { ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 
@@ -37,10 +38,16 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [openPendingGroup, setOpenPendingGroup] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownPortalRef = useRef<HTMLDivElement>(null);
+  const dropdownAnchorRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const clickedTopBar = dropdownRef.current?.contains(target);
+      const clickedDropdown = dropdownPortalRef.current?.contains(target);
+      if (!clickedTopBar && !clickedDropdown) {
         setOpenDropdown(null);
       }
     };
@@ -53,6 +60,36 @@ export const TopBar: React.FC<TopBarProps> = ({
       setOpenPendingGroup(true);
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!openDropdown) {
+      setDropdownPos(null);
+      return;
+    }
+
+    const anchor = dropdownAnchorRefs.current[openDropdown];
+    if (!anchor) return;
+
+    const compute = () => {
+      const rect = anchor.getBoundingClientRect();
+      const width = 288; // Tailwind w-72
+      const marginTop = 8; // mt-2
+
+      let left = rect.left;
+      const maxLeft = Math.max(8, window.innerWidth - width - 8);
+      left = Math.min(Math.max(8, left), maxLeft);
+
+      setDropdownPos({ top: rect.bottom + marginTop, left, width });
+    };
+
+    compute();
+    window.addEventListener('resize', compute);
+    window.addEventListener('scroll', compute, true);
+    return () => {
+      window.removeEventListener('resize', compute);
+      window.removeEventListener('scroll', compute, true);
+    };
+  }, [openDropdown]);
 
   const groupedItems = items.reduce((acc, item) => {
     const section = item.section || 'main';
@@ -139,8 +176,25 @@ export const TopBar: React.FC<TopBarProps> = ({
     });
   };
 
+  const dropdownContent = useMemo(() => {
+    if (!openDropdown || !dropdownPos) return null;
+
+    const section = openDropdown;
+    return (
+      <div
+        ref={dropdownPortalRef}
+        className="fixed bg-blue-50 rounded-xl shadow-2xl border border-blue-200 py-2 z-[9999] overflow-hidden"
+        style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+      >
+        {section === 'Tasks'
+          ? renderTasksDropdown()
+          : (groupedItems[section] || []).map(item => renderDropdownButton(item))}
+      </div>
+    );
+  }, [activeTab, groupedItems, openDropdown, dropdownPos, openPendingGroup]);
+
   return (
-    <div className="w-full bg-white shadow-sm border-b border-gray-100 flex items-center justify-between px-2 md:px-4 py-2 flex-shrink-0 z-40 relative" ref={dropdownRef}>
+    <div className="w-full bg-white shadow-sm border-b border-gray-100 flex items-center justify-between px-0 py-2 flex-shrink-0 z-40 relative" ref={dropdownRef}>
       <div className="flex items-center space-x-4 flex-shrink-0">
          <a 
             href="https://bizskilledu.com/" 
@@ -180,18 +234,13 @@ export const TopBar: React.FC<TopBarProps> = ({
             <li key={section} className="relative">
               <button
                 onClick={() => toggleDropdown(section)}
+                ref={(el) => {
+                  dropdownAnchorRefs.current[section] = el;
+                }}
                 className={`flex items-center px-4 py-2.5 rounded-lg text-sm font-semibold ${isSectionActive(section) || openDropdown === section ? 'text-indigo-600 bg-indigo-50' : 'text-gray-600 hover:text-indigo-600 hover:bg-gray-50'}`}
               >
                 <span>{section}</span>
               </button>
-              
-              {openDropdown === section && (
-                <div className="absolute top-full left-0 mt-2 w-72 bg-blue-50 rounded-xl shadow-2xl border border-blue-200 py-2 z-50 overflow-hidden">
-                  {section === 'Tasks'
-                    ? renderTasksDropdown()
-                    : groupedItems[section].map(item => renderDropdownButton(item))}
-                </div>
-              )}
             </li>
           ))}
         </ul>
@@ -231,6 +280,8 @@ export const TopBar: React.FC<TopBarProps> = ({
           </button>
         </div>
       </div>
+
+      {dropdownContent && createPortal(dropdownContent, document.body)}
     </div>
   );
 };

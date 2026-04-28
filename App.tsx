@@ -295,6 +295,8 @@ export default function App() {
   const [lastAddedCategory, setLastAddedCategory] = useState<string>('');
   const [lastAddedProject, setLastAddedProject] = useState<string>('');
   const [lastAddedVendorCategory, setLastAddedVendorCategory] = useState<string>('');
+  const [projectModalInitialName, setProjectModalInitialName] = useState<string>('');
+  const [categoryModalInitialName, setCategoryModalInitialName] = useState<string>('');
 
   const [filterStatus, setFilterStatus] = useState<string[]>([]);
   const [filterPriority, setFilterPriority] = useState<string[]>([]);
@@ -523,7 +525,13 @@ export default function App() {
           ...a,
           id: Number(a.id || 0),
           taskId: Number(a.taskId || a.taskID || a.taskid || 0),
-          updatedOn: formatToIndianDate(a.updatedOn || a.UpdatedOn || '')
+          taskTitle: String(a.taskTitle || a.task || a.title || a.TaskTitle || a['Task Title'] || ''),
+          category: String(a.category || a.Category || ''),
+          assignee: String(a.assignee || a.Assignee || ''),
+          status: String(a.status || a.Status || 'Not Yet Started') as any,
+          remarks: String(a.remarks || a.Remarks || a.remark || ''),
+          timestamp: String(a.timestamp || a.Timestamp || ''),
+          updatedOn: formatToIndianDate(a.updatedOn || a.UpdatedOn || a['updated On'] || '')
         })));
         if (data.settings) setSettings(data.settings);
         setLastSynced(new Date());
@@ -819,7 +827,26 @@ export default function App() {
           onOpenAddUser={() => setIsUserModalOpen(true)} onOpenAddProject={() => setIsProjectModalOpen(true)} onOpenAddClient={() => setIsClientModalOpen(true)} onOpenAddVendor={() => setIsVendorModalOpen(true)} 
         />;
       case 'all-tasks': return <TasksView title="All Tasks" description="View and manage all your tasks" tasks={visibleTasks.filter(t => !t.vendor || t.vendor === '')} {...commonTaskProps} filterType="all" />;
-      case 'add-multiple': return <AddMultipleTasksView projects={projects} users={users} categories={categories} currentUser={currentUser} onSaveTasks={async (tasksToSave) => { for (const t of tasksToSave) await handleAddTaskOptimistic(t, false); setActiveTab('all-tasks'); }} />;
+      case 'add-multiple': return (
+        <AddMultipleTasksView
+          projects={projects}
+          users={users}
+          categories={categories}
+          currentUser={currentUser}
+          onOpenAddProject={(name) => {
+            setProjectModalInitialName(name);
+            setIsProjectModalOpen(true);
+          }}
+          onOpenAddCategory={(name) => {
+            setCategoryModalInitialName(name);
+            setIsCategoryModalOpen(true);
+          }}
+          onSaveTasks={async (tasksToSave) => {
+            for (const t of tasksToSave) await handleAddTaskOptimistic(t, false);
+            setActiveTab('all-tasks');
+          }}
+        />
+      );
       case 'pending': return <TasksView title="Pending Tasks" description="Tasks requiring attention" tasks={visibleTasks.filter(t => (!t.vendor || t.vendor === '') && t.status !== 'Completed')} {...commonTaskProps} filterType="pending" />;
       case 'pending-client': return <TasksView title="Pending for Client" description="Tasks waiting for client feedback or action" tasks={visibleTasks.filter(t => (!t.vendor || t.vendor === '') && t.status === 'Pending for Client')} {...commonTaskProps} filterType="all" />;
       case 'pending-owner': return <TasksView title="Pending for Owner" description="Tasks waiting for owner review or action" tasks={visibleTasks.filter(t => (!t.vendor || t.vendor === '') && t.status === 'Pending for Owner')} {...commonTaskProps} filterType="all" />;
@@ -899,7 +926,7 @@ export default function App() {
               </header>
             )}
 
-            <main className="flex-1 overflow-y-auto p-2 md:p-4 custom-scrollbar relative">
+	            <main className="flex-1 overflow-y-auto pt-2 md:pt-4 px-2 md:px-4 pb-0 custom-scrollbar relative">
               {isLoading ? (
                 <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center space-y-4">
                     <div className="relative w-20 h-20">
@@ -938,9 +965,34 @@ export default function App() {
         lastAddedVendorCategory={lastAddedVendorCategory} onClearLastAdded={() => { setLastAddedCategory(''); setLastAddedProject(''); setLastAddedVendorCategory(''); }}
       />
       
-      <AddCategoryModal isOpen={isCategoryModalOpen} onClose={() => setIsCategoryModalOpen(false)} onSave={handleInstantAddCategory} categories={categories} />
+      <AddCategoryModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => {
+          setIsCategoryModalOpen(false);
+          setCategoryModalInitialName('');
+        }}
+        onSave={(c) => {
+          handleInstantAddCategory(c);
+          setCategoryModalInitialName('');
+        }}
+        initialData={categoryModalInitialName ? ({ id: 0, name: categoryModalInitialName, type: '' } as any) : null}
+        categories={categories}
+      />
       <AddVendorCategoryModal isOpen={isVendorCategoryModalOpen} onClose={() => setIsVendorCategoryModalOpen(false)} onSave={handleInstantAddVendorCategory} vendorCategories={vendorCategories} />
-      <AddProjectModal isOpen={isProjectModalOpen} onClose={() => setIsProjectModalOpen(false)} onSave={handleInstantAddProject} clients={clients} onAddClient={() => setIsClientModalOpen(true)} />
+      <AddProjectModal
+        isOpen={isProjectModalOpen}
+        onClose={() => {
+          setIsProjectModalOpen(false);
+          setProjectModalInitialName('');
+        }}
+        onSave={(p) => {
+          handleInstantAddProject(p);
+          setProjectModalInitialName('');
+        }}
+        clients={clients}
+        onAddClient={() => setIsClientModalOpen(true)}
+        initialName={projectModalInitialName}
+      />
       <AddClientModal isOpen={isClientModalOpen} onClose={() => setIsClientModalOpen(false)} onSave={handleInstantAddClient} clients={clients} />
       <AddUserModal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} onSave={(u) => { setUsers(p => [...p, { ...u, id: Date.now(), isActive: true } as any]); apiPost('addMaster', u, 'Users'); }} designations={designations} onAddDesignation={() => setIsDesignationModalOpen(true)} users={users} />
       <AddDesignationModal isOpen={isDesignationModalOpen} onClose={() => setIsDesignationModalOpen(false)} onSave={(d) => { setDesignations(p => [...p, { ...d, id: Date.now() } as any]); apiPost('addMaster', d, 'Designations'); }} designations={designations} />
@@ -949,7 +1001,30 @@ export default function App() {
       <TaskHistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} task={selectedTaskForHistory} logs={actionLogs} />
       
       <AddRecurringTaskModal isOpen={isRecurringTaskModalOpen} onClose={() => setIsRecurringTaskModalOpen(false)} onSave={(t) => { setRecurringTasks(prev => [...prev, { ...t, id: Date.now(), status: 'Not Yet Started' } as any]); apiPost('addMaster', t, 'RecurringTasks'); }} users={users} categories={categories} />
-      <UpdateRecurringTaskModal isOpen={isRecurringTaskUpdateModalOpen} onClose={() => setIsRecurringTaskUpdateModalOpen(false)} task={selectedRecurringTask} onSave={(t) => { setRecurringTasks(prev => prev.map(x => x.id === t.id ? t : x)); apiPost('addMaster', t, 'RecurringActions'); }} />
+      <UpdateRecurringTaskModal
+        isOpen={isRecurringTaskUpdateModalOpen}
+        onClose={() => setIsRecurringTaskUpdateModalOpen(false)}
+        task={selectedRecurringTask}
+        onSave={(t) => {
+          setRecurringTasks(prev => prev.map(x => x.id === t.id ? t : x));
+
+          const now = new Date();
+          const timestamp = now.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '');
+          const updatedOn = now.toLocaleDateString('en-GB');
+
+          apiPost('addMaster', {
+            id: Date.now(),
+            taskId: t.id,
+            taskTitle: t.title,
+            category: t.category,
+            assignee: t.assignee,
+            status: t.status,
+            updatedOn,
+            timestamp,
+            remarks: t.lastUpdateRemarks
+          }, 'RecurringActions');
+        }}
+      />
       <EditRecurringTaskModal isOpen={isEditRecurringTaskModalOpen} onClose={() => setIsEditRecurringTaskModalOpen(false)} task={selectedRecurringTask} onSave={(t) => { setRecurringTasks(prev => prev.map(x => x.id === t.id ? t : x)); apiPost('updateMaster', t, 'RecurringTasks'); }} users={users} categories={categories} />
       <RecurringTaskHistoryModal isOpen={isRecurringHistoryModalOpen} onClose={() => setIsRecurringHistoryModalOpen(false)} task={selectedRecurringTask} actions={recurringActions} />
     </div>

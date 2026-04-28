@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, X, Check, Square, CheckSquare, ListChecks, Eraser } from 'lucide-react';
+import { ChevronDown, X, Check, Square, CheckSquare, ListChecks, Eraser, Plus } from 'lucide-react';
 
 interface Option {
   value: string;
@@ -18,6 +18,9 @@ interface SearchableSelectProps {
   required?: boolean;
   className?: string;
   disabled?: boolean;
+  allowCreate?: boolean;
+  onCreateOption?: (value: string) => void | boolean;
+  createLabel?: (value: string) => string;
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -29,7 +32,10 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   placeholder = 'Select...',
   required = false,
   className = '',
-  disabled = false
+  disabled = false,
+  allowCreate = false,
+  onCreateOption,
+  createLabel
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -100,6 +106,14 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     );
   }, [sortedOptions, searchTerm]);
 
+  const createValue = useMemo(() => searchTerm.trim(), [searchTerm]);
+  const canCreate = useMemo(() => {
+    if (!allowCreate || disabled) return false;
+    if (!createValue) return false;
+    const needle = createValue.toLowerCase();
+    return !sortedOptions.some(o => String(o.value || o.label || '').toLowerCase() === needle || String(o.label || o.value || '').toLowerCase() === needle);
+  }, [allowCreate, disabled, createValue, sortedOptions]);
+
   const handleSelect = (optionValue: string) => {
     if (disabled) return;
     if (multiple) {
@@ -112,6 +126,13 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
       onChange(optionValue);
       setIsOpen(false);
     }
+  };
+
+  const handleCreate = (val: string) => {
+    if (!val.trim()) return;
+    const res = onCreateOption?.(val);
+    if (res !== false) handleSelect(val);
+    setSearchTerm('');
   };
 
   const handleSelectAllVisible = (e: React.MouseEvent) => {
@@ -254,6 +275,24 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         ) : (
           <div className="px-4 py-8 text-sm text-gray-400 text-center font-bold uppercase tracking-widest">
             No matching results
+          </div>
+        )}
+
+        {canCreate && (
+          <div
+            key="__create__"
+            className="px-4 py-3 text-sm cursor-pointer flex items-center gap-3 transition-colors border-t border-gray-100 text-emerald-700 hover:bg-emerald-50"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCreate(createValue);
+            }}
+          >
+            <span className="flex-1 font-bold">
+              {createLabel ? createLabel(createValue) : `Add "${createValue}"`}
+            </span>
+            <div className="flex-shrink-0">
+              <Plus size={18} className="text-emerald-600" />
+            </div>
           </div>
         )}
       </div>

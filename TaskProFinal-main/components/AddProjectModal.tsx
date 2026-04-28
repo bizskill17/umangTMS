@@ -9,9 +9,10 @@ interface AddProjectModalProps {
   onSave: (project: Omit<Project, 'id'>) => void;
   clients: Client[];
   onAddClient: () => void;
+  initialName?: string;
 }
 
-export const AddProjectModal: React.FC<AddProjectModalProps> = ({ isOpen, onClose, onSave, clients, onAddClient }) => {
+export const AddProjectModal: React.FC<AddProjectModalProps> = ({ isOpen, onClose, onSave, clients, onAddClient, initialName }) => {
   const [formData, setFormData] = useState({
     name: '',
     client: '',
@@ -20,6 +21,13 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({ isOpen, onClos
     whatsappGroupId: '',
     projectEmail: ''
   });
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    if (initialName && initialName.trim()) {
+      setFormData(prev => ({ ...prev, name: initialName.trim() }));
+    }
+  }, [initialName, isOpen]);
 
   if (!isOpen) return null;
 
