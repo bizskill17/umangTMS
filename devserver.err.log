@@ -1,0 +1,5 @@
+[2m18:52:58[22m [31m[1m[vite][22m[39m [31mInternal server error: EBUSY: resource busy or locked, open 'D:\TaskProFinal-main\components\TopBar.tsx'[39m
+      at async open (node:internal/fs/promises:637:25)
+      at async Object.readFile (node:internal/fs/promises:1269:14)
+      at async loadAndTransform (file:///D:/TaskProFinal-main/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:35681:16)
+      at async viteTransformMiddleware (file:///D:/TaskProFinal-main/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:37254:24)
