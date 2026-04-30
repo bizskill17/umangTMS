@@ -183,6 +183,13 @@ export const formatToHHMM = (timeInput: any): string => {
   return raw;
 };
 
+const getCaseInsensitive = (obj: any, key: string): any => {
+  if (!obj) return undefined;
+  const target = key.toLowerCase();
+  const foundKey = Object.keys(obj).find(k => k.toLowerCase() === target);
+  return foundKey ? obj[foundKey] : undefined;
+};
+
 export const parseToISO = (str: string) => {
     if (!str) return '';
     const trimmed = str.trim();
@@ -548,15 +555,15 @@ export default function App() {
             };
         });
         setActionLogs(normalizedLogs);
-        setRecurringTasks((data.recurringTasks || []).map((t: any) => ({
-            ...t,
-            id: Number(t.id),
-            frequencyDays: Number(t.frequencyDays || 30),
-            startDate: formatToIndianDate(t.startDate || ''),
-            time: formatToHHMM(t.time || t.Time || ''),
-            lastUpdatedOn: formatToIndianDate(t.lastUpdatedOn || ''),
-            status: String(t.status || 'Not Yet Started') as any
-        })));
+	        setRecurringTasks((data.recurringTasks || []).map((t: any) => ({
+	            ...t,
+	            id: Number(t.id),
+	            frequencyDays: Number(t.frequencyDays || 30),
+	            startDate: formatToIndianDate(t.startDate || ''),
+	            time: formatToHHMM(getCaseInsensitive(t, 'time') || ''),
+	            lastUpdatedOn: formatToIndianDate(t.lastUpdatedOn || ''),
+	            status: String(t.status || 'Not Yet Started') as any
+	        })));
         setRecurringActions((data.recurringActions || []).map((a: any) => ({
           ...a,
           id: Number(a.id || 0),

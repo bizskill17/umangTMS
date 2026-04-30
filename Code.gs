@@ -55,7 +55,8 @@ function sheetToJSON(sheetName) {
       }
       if (!header) return;
       const headerLower = header.toLowerCase();
-      let key = (headerLower === 'id') ? 'id' : header.charAt(0).toLowerCase() + header.slice(1);
+      // Normalize keys so headers like "TIME" don't become "tIME"
+      let key = (headerLower === 'id') ? 'id' : headerLower;
       obj[key] = val;
     });
     return obj;
