@@ -43,7 +43,14 @@ function sheetToJSON(sheetName) {
     headers.forEach((h, i) => {
       let val = row[i];
       if (val instanceof Date) {
-        val = Utilities.formatDate(val, Session.getScriptTimeZone(), "dd-MM-yyyy");
+        const headerKey = String(h || '').trim().toLowerCase();
+        // Google Sheets "time" cells come as Date objects with base date 30-12-1899.
+        // Format those as HH:mm instead of a date.
+        if (headerKey === 'time' || headerKey === 'timestamp') {
+          val = Utilities.formatDate(val, Session.getScriptTimeZone(), "HH:mm");
+        } else {
+          val = Utilities.formatDate(val, Session.getScriptTimeZone(), "dd-MM-yyyy");
+        }
       }
       let key = (h === 'ID' || h === 'id') ? 'id' : h.charAt(0).toLowerCase() + h.slice(1);
       obj[key] = val;
