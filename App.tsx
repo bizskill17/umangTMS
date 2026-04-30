@@ -154,6 +154,18 @@ export const formatToHHMM = (timeInput: any): string => {
   const raw = String(timeInput).trim();
   if (!raw) return '';
 
+  // Google Sheets time-only values can accidentally get formatted as the base date.
+  // If we get that sentinel date as a string, treat it as "no time" rather than showing a date.
+  if (
+    raw === '30-12-1899' ||
+    raw === '30/12/1899' ||
+    raw === '1899-12-30' ||
+    /^1899-12-30[ t]/.test(raw) ||
+    /^30[/-]12[/-]1899\b/.test(raw)
+  ) {
+    return '';
+  }
+
   const hhmmMatch = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
   if (hhmmMatch) {
     const hh = Math.min(23, Math.max(0, Number(hhmmMatch[1])));
